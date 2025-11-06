@@ -2,30 +2,41 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var goalManager: GoalManager
-    @State private var showingAddGoal = false
     @State private var selectedTab = 0
     
     var body: some View {
         TabView(selection: $selectedTab) {
             DashboardView()
                 .tabItem {
-                    Label("Goals", systemImage: "target")
+                    Label("Цели", systemImage: "target")
                 }
                 .tag(0)
             
-            AchievementsView()
+            CharacterView()
                 .tabItem {
-                    Label("Achievements", systemImage: "trophy.fill")
+                    Label("Персонаж", systemImage: "person.fill")
                 }
                 .tag(1)
             
-            StatsView()
+            RewardsShopView()
                 .tabItem {
-                    Label("Stats", systemImage: "chart.bar.fill")
+                    Label("Награды", systemImage: "gift.fill")
                 }
                 .tag(2)
+            
+            AchievementsView()
+                .tabItem {
+                    Label("Достижения", systemImage: "trophy.fill")
+                }
+                .tag(3)
+            
+            StatsView()
+                .tabItem {
+                    Label("Статистика", systemImage: "chart.bar.fill")
+                }
+                .tag(4)
         }
-        .accentColor(.blue)
+        .accentColor(.purple)
     }
 }
 

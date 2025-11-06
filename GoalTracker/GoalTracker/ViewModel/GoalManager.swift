@@ -5,30 +5,112 @@ import Combine
 class GoalManager: ObservableObject {
     @Published var goals: [Goal] = []
     @Published var achievements: [Achievement] = []
+    @Published var rewards: [Reward] = []
+    @Published var userProfile: UserProfile = UserProfile()
     @Published var showAchievementNotification = false
     @Published var latestAchievement: Achievement?
+    @Published var showLevelUpNotification = false
+    @Published var showCoinAnimation = false
+    @Published var coinsEarned: Int = 0
     
     private let goalsKey = "saved_goals"
     private let achievementsKey = "saved_achievements"
+    private let rewardsKey = "saved_rewards"
+    private let profileKey = "saved_profile"
     
     init() {
         loadGoals()
         loadAchievements()
+        loadRewards()
+        loadProfile()
         checkAndResetRepeatingGoals()
+        updateStreak()
+    }
+    
+    // MARK: - Profile Management
+    func addCoins(_ amount: Int) {
+        userProfile.coins += amount
+        coinsEarned = amount
+        showCoinAnimation = true
+        saveProfile()
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            self.showCoinAnimation = false
+        }
+    }
+    
+    func spendCoins(_ amount: Int) -> Bool {
+        guard userProfile.coins >= amount else { return false }
+        userProfile.coins -= amount
+        saveProfile()
+        return true
+    }
+    
+    func addXP(_ amount: Int) {
+        let oldLevel = userProfile.level
+        userProfile.xp += amount
+        
+        while userProfile.xp >= userProfile.xpToNextLevel {
+            userProfile.xp -= userProfile.xpToNextLevel
+            userProfile.level += 1
+        }
+        
+        if userProfile.level > oldLevel {
+            showLevelUpNotification = true
+            addCoins(userProfile.level * 50) // Бонус за левел
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                self.showLevelUpNotification = false
+            }
+        }
+        
+        saveProfile()
+    }
+    
+    func updateStreak() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let lastActivity = calendar.startOfDay(for: userProfile.lastActivityDate)
+        
+        let daysDiff = calendar.dateComponents([.day], from: lastActivity, to: today).day ?? 0
+        
+        if daysDiff == 0 {
+            // Сегодня уже была активность
+            return
+        } else if daysDiff == 1 {
+            // Продолжаем streak
+            userProfile.streak += 1
+            if userProfile.streak > userProfile.longestStreak {
+                userProfile.longestStreak = userProfile.streak
+            }
+        } else if daysDiff > 1 {
+            // Streak прервался
+            userProfile.streak = 0
+        }
+        
+        userProfile.lastActivityDate = Date()
+        saveProfile()
+        
+        // Награды за streak
+        if userProfile.streak == 7 {
+            addCoins(50)
+        } else if userProfile.streak == 30 {
+            addCoins(200)
+        } else if userProfile.streak % 10 == 0 && userProfile.streak > 0 {
+            addCoins(userProfile.streak * 5)
+        }
     }
     
     // MARK: - Goal Management
     func addGoal(_ goal: Goal) {
         goals.append(goal)
         saveGoals()
-        checkForAchievements()
     }
     
     func updateGoal(_ goal: Goal) {
         if let index = goals.firstIndex(where: { $0.id == goal.id }) {
             goals[index] = goal
             saveGoals()
-            checkForAchievements()
         }
     }
     
@@ -44,10 +126,20 @@ class GoalManager: ObservableObject {
             updatedGoal.currentValue = max(0, min(value, updatedGoal.targetValue))
             updatedGoal.lastUpdated = Date()
             
-            // Добавить запись в историю если цель завершена
+            // Добавить запись в историю и награды если цель завершена
             if updatedGoal.isCompleted && previousValue < updatedGoal.targetValue {
-                let record = CompletionRecord(date: Date(), value: updatedGoal.targetValue)
+                let coins = updatedGoal.coinReward
+                let xp = updatedGoal.coinReward * 2
+                let record = CompletionRecord(date: Date(), value: updatedGoal.targetValue, coinsEarned: coins)
                 updatedGoal.completionHistory.append(record)
+                
+                addCoins(coins)
+                addXP(xp)
+                userProfile.totalGoalsCompleted += 1
+                updateStreak()
+                
+                // Прокачать характеристику персонажа
+                updateCharacterStats(for: updatedGoal)
             }
             
             goals[index] = updatedGoal
@@ -63,16 +155,167 @@ class GoalManager: ObservableObject {
             updatedGoal.currentValue = min(updatedGoal.currentValue + value, updatedGoal.targetValue)
             updatedGoal.lastUpdated = Date()
             
-            // Добавить запись в историю если цель завершена
+            // Для habit типа награждаем каждый раз
+            if updatedGoal.trackingType == .habit {
+                let coins = updatedGoal.difficulty == .easy ? 5 : 10
+                addCoins(coins)
+                addXP(coins)
+                updateStreak()
+                
+                // Небольшая прокачка за привычку
+                updateCharacterStats(for: updatedGoal, isHabit: true)
+            }
+            
+            // Добавить запись в историю и награды если цель завершена
             if updatedGoal.isCompleted && previousValue < updatedGoal.targetValue {
-                let record = CompletionRecord(date: Date(), value: updatedGoal.targetValue)
+                let coins = updatedGoal.coinReward
+                let xp = updatedGoal.coinReward * 2
+                let record = CompletionRecord(date: Date(), value: updatedGoal.targetValue, coinsEarned: coins)
                 updatedGoal.completionHistory.append(record)
+                
+                addCoins(coins)
+                addXP(xp)
+                userProfile.totalGoalsCompleted += 1
+                updateStreak()
+                
+                // Прокачать характеристику персонажа
+                updateCharacterStats(for: updatedGoal)
             }
             
             goals[index] = updatedGoal
             saveGoals()
             checkForAchievements()
         }
+    }
+    
+    // MARK: - Character Stats Update
+    private func updateCharacterStats(for goal: Goal, isHabit: Bool = false) {
+        // РЕАЛИСТИЧНАЯ СИСТЕМА: маленький прирост за одну цель
+        // Для реального изменения нужно постоянство!
+        
+        let baseGain: Int
+        if isHabit {
+            // За привычку совсем мало (нужно много повторений)
+            baseGain = 1
+        } else {
+            // За завершенную цель немного больше, но не много
+            switch goal.difficulty {
+            case .easy: baseGain = 1
+            case .medium: baseGain = 2
+            case .hard: baseGain = 3
+            case .epic: baseGain = 5
+            }
+        }
+        
+        // Бонус за streak (постоянство важно!)
+        let streakBonus: Int
+        if userProfile.streak >= 30 {
+            streakBonus = 2 // +2 за месяц постоянства
+        } else if userProfile.streak >= 7 {
+            streakBonus = 1 // +1 за неделю постоянства
+        } else {
+            streakBonus = 0
+        }
+        
+        let totalGain = baseGain + streakBonus
+        
+        // Всегда прокачиваем дисциплину (любая цель = дисциплина)
+        userProfile.characterStats.updateStat(for: .discipline, change: totalGain)
+        
+        // Определяем специфичную характеристику по содержанию цели
+        let title = goal.title.lowercased()
+        let description = goal.description.lowercased()
+        let combinedText = title + " " + description
+        
+        // ФИЗИЧЕСКАЯ ФОРМА
+        if combinedText.contains("спорт") || combinedText.contains("тренировка") ||
+           combinedText.contains("бег") || combinedText.contains("отжим") ||
+           combinedText.contains("зал") || combinedText.contains("йога") ||
+           combinedText.contains("растяжка") || combinedText.contains("шаги") ||
+           goal.icon.contains("figure") || goal.icon.contains("dumbbell") {
+            userProfile.characterStats.updateStat(for: .physical, change: totalGain)
+        }
+        
+        // ИНТЕЛЛЕКТ
+        if combinedText.contains("книга") || combinedText.contains("учить") ||
+           combinedText.contains("курс") || combinedText.contains("язык") ||
+           combinedText.contains("обучение") || combinedText.contains("читать") ||
+           combinedText.contains("код") || combinedText.contains("документация") ||
+           goal.icon.contains("book") || goal.icon.contains("graduationcap") {
+            userProfile.characterStats.updateStat(for: .mental, change: totalGain)
+        }
+        
+        // ЗДОРОВЬЕ
+        if combinedText.contains("вода") || combinedText.contains("сон") ||
+           combinedText.contains("здоров") || combinedText.contains("витамин") ||
+           combinedText.contains("питание") || combinedText.contains("сахар") ||
+           goal.icon.contains("heart") || goal.icon.contains("drop") ||
+           goal.icon.contains("bed") || goal.icon.contains("leaf") {
+            userProfile.characterStats.updateStat(for: .health, change: totalGain)
+        }
+        
+        // КАРЬЕРА
+        if combinedText.contains("работа") || combinedText.contains("бизнес") ||
+           combinedText.contains("проект") || combinedText.contains("встреч") ||
+           combinedText.contains("клиент") || combinedText.contains("финанс") ||
+           combinedText.contains("рабоч") || goal.icon.contains("briefcase") ||
+           goal.icon.contains("chart") {
+            userProfile.characterStats.updateStat(for: .career, change: totalGain)
+        }
+        
+        // СОЦИАЛЬНАЯ ЖИЗНЬ
+        if combinedText.contains("семья") || combinedText.contains("друзья") ||
+           combinedText.contains("звонок") || combinedText.contains("супруг") ||
+           combinedText.contains("дети") || combinedText.contains("родител") ||
+           combinedText.contains("свидание") || goal.icon.contains("person") ||
+           goal.icon.contains("heart.fill") || goal.icon.contains("house") {
+            userProfile.characterStats.updateStat(for: .social, change: totalGain)
+        }
+        
+        saveProfile()
+    }
+    
+    func decrementGoalProgress(goalId: UUID, by value: Double = 1) {
+        if let index = goals.firstIndex(where: { $0.id == goalId }) {
+            var updatedGoal = goals[index]
+            updatedGoal.currentValue = max(0, updatedGoal.currentValue - value)
+            updatedGoal.lastUpdated = Date()
+            
+            // Штраф за минус
+            if updatedGoal.trackingType == .habit {
+                let penalty = updatedGoal.difficulty == .easy ? 3 : 5
+                userProfile.coins = max(0, userProfile.coins - penalty)
+                saveProfile()
+            }
+            
+            goals[index] = updatedGoal
+            saveGoals()
+        }
+    }
+    
+    // MARK: - Reward Management
+    func purchaseReward(_ reward: Reward) -> Bool {
+        guard spendCoins(reward.cost) else { return false }
+        
+        if let index = rewards.firstIndex(where: { $0.id == reward.id }) {
+            var updatedReward = rewards[index]
+            updatedReward.isPurchased = true
+            updatedReward.purchaseDate = Date()
+            rewards[index] = updatedReward
+        }
+        
+        saveRewards()
+        return true
+    }
+    
+    func addCustomReward(_ reward: Reward) {
+        rewards.append(reward)
+        saveRewards()
+    }
+    
+    func deleteReward(_ reward: Reward) {
+        rewards.removeAll { $0.id == reward.id }
+        saveRewards()
     }
     
     // MARK: - Repeating Goals
@@ -138,6 +381,36 @@ class GoalManager: ObservableObject {
         }
     }
     
+    private func saveRewards() {
+        if let encoded = try? JSONEncoder().encode(rewards) {
+            UserDefaults.standard.set(encoded, forKey: rewardsKey)
+        }
+    }
+    
+    private func loadRewards() {
+        if let data = UserDefaults.standard.data(forKey: rewardsKey),
+           let decoded = try? JSONDecoder().decode([Reward].self, from: data) {
+            rewards = decoded
+        } else {
+            // Загрузить дефолтные награды при первом запуске
+            rewards = RewardsManager.shared.defaultVirtualRewards + RewardsManager.shared.defaultRealRewards
+            saveRewards()
+        }
+    }
+    
+    private func saveProfile() {
+        if let encoded = try? JSONEncoder().encode(userProfile) {
+            UserDefaults.standard.set(encoded, forKey: profileKey)
+        }
+    }
+    
+    private func loadProfile() {
+        if let data = UserDefaults.standard.data(forKey: profileKey),
+           let decoded = try? JSONDecoder().decode(UserProfile.self, from: data) {
+            userProfile = decoded
+        }
+    }
+    
     // MARK: - Achievements System
     private func checkForAchievements() {
         let completedGoals = goals.filter { $0.isCompleted }
@@ -150,7 +423,8 @@ class GoalManager: ObservableObject {
                     description: "Завершена первая цель!",
                     icon: "star.fill",
                     reward: "🌟 Начало пути",
-                    rarity: .common
+                    rarity: .common,
+                    coinsEarned: 100
                 )
             )
         }
@@ -163,7 +437,8 @@ class GoalManager: ObservableObject {
                     description: "Завершено 5 целей!",
                     icon: "flame.fill",
                     reward: "🔥 Огненная серия",
-                    rarity: .rare
+                    rarity: .rare,
+                    coinsEarned: 250
                 )
             )
         }
@@ -176,7 +451,8 @@ class GoalManager: ObservableObject {
                     description: "Завершено 10 целей!",
                     icon: "crown.fill",
                     reward: "👑 Корона победителя",
-                    rarity: .epic
+                    rarity: .epic,
+                    coinsEarned: 500
                 )
             )
         }
@@ -189,87 +465,39 @@ class GoalManager: ObservableObject {
                     description: "Завершено 25 целей!",
                     icon: "sparkles",
                     reward: "✨ Легендарный статус",
-                    rarity: .legendary
+                    rarity: .legendary,
+                    coinsEarned: 1000
                 )
             )
         }
         
         // Серия 7 дней
-        if hasConsecutiveDays(7) && !hasAchievement(titled: "Недельная Серия") {
+        if userProfile.streak >= 7 && !hasAchievement(titled: "Недельная Серия") {
             unlockAchievement(
                 Achievement(
                     title: "Недельная Серия",
                     description: "7 дней подряд выполнения целей!",
                     icon: "calendar.badge.clock",
                     reward: "📅 Мастер постоянства",
-                    rarity: .rare
+                    rarity: .rare,
+                    coinsEarned: 250
                 )
             )
         }
         
         // Серия 30 дней
-        if hasConsecutiveDays(30) && !hasAchievement(titled: "Месячный Марафон") {
+        if userProfile.streak >= 30 && !hasAchievement(titled: "Месячный Марафон") {
             unlockAchievement(
                 Achievement(
                     title: "Месячный Марафон",
                     description: "30 дней подряд выполнения целей!",
                     icon: "flame.circle.fill",
                     reward: "🏆 Титан дисциплины",
-                    rarity: .epic
+                    rarity: .epic,
+                    coinsEarned: 500
                 )
             )
         }
-        
-        // Перфекционист - 100% выполнение всех активных целей
-        if !activeGoals.isEmpty && activeGoals.allSatisfy({ $0.isCompleted }) && !hasAchievement(titled: "Перфекционист") {
-            unlockAchievement(
-                Achievement(
-                    title: "Перфекционист",
-                    description: "Все активные цели выполнены!",
-                    icon: "checkmark.seal.fill",
-                    reward: "💎 Безупречное исполнение",
-                    rarity: .epic
-                )
-            )
-        }
-        
-        // Ранняя пташка - завершение до 8 утра
-        let calendar = Calendar.current
-        if let lastCompletion = goals.flatMap({ $0.completionHistory }).last {
-            let hour = calendar.component(.hour, from: lastCompletion.date)
-            if hour < 8 && !hasAchievement(titled: "Ранняя Пташка") {
-                unlockAchievement(
-                    Achievement(
-                        title: "Ранняя Пташка",
-                        description: "Выполнение целей до 8 утра!",
-                        icon: "sunrise.fill",
-                        reward: "🌅 Утренняя энергия",
-                        rarity: .rare
-                    )
-                )
-            }
-        }
-    }
-    
-    private func hasConsecutiveDays(_ days: Int) -> Bool {
-        let calendar = Calendar.current
-        let completionDates = goals.flatMap { $0.completionHistory.map { $0.date } }
-        guard !completionDates.isEmpty else { return false }
-        
-        let sortedDates = completionDates.sorted(by: >)
-        var consecutiveDays = 0
-        var currentDate = calendar.startOfDay(for: Date())
-        
-        for _ in 0..<days {
-            if sortedDates.contains(where: { calendar.isDate($0, inSameDayAs: currentDate) }) {
-                consecutiveDays += 1
-            } else {
-                return false
-            }
-            currentDate = calendar.date(byAdding: .day, value: -1, to: currentDate) ?? currentDate
-        }
-        
-        return consecutiveDays >= days
     }
     
     private func hasAchievement(titled title: String) -> Bool {
@@ -280,9 +508,9 @@ class GoalManager: ObservableObject {
         achievements.append(achievement)
         latestAchievement = achievement
         showAchievementNotification = true
+        addCoins(achievement.coinsEarned)
         saveAchievements()
         
-        // Скрыть уведомление через 5 секунд
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
             self.showAchievementNotification = false
         }
@@ -303,6 +531,10 @@ class GoalManager: ObservableObject {
     
     var completedGoalsList: [Goal] {
         goals.filter { $0.isCompleted }
+    }
+    
+    var todayGoals: [Goal] {
+        goals.filter { $0.frequency == .daily && !$0.isCompleted }
     }
     
     var totalCompletions: Int {
