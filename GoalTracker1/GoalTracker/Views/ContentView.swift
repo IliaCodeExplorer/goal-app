@@ -12,9 +12,9 @@ struct ContentView: View {
                 }
                 .tag(0)
             
-            StatisticsView()
+            CharacterView()
                 .tabItem {
-                    Label("Статистика", systemImage: "chart.bar.fill")
+                    Label("Персонаж", systemImage: "person.fill")
                 }
                 .tag(1)
             
@@ -24,11 +24,17 @@ struct ContentView: View {
                 }
                 .tag(2)
             
-            ProfileView()
+            AchievementsView()
                 .tabItem {
-                    Label("Профиль", systemImage: "person.fill")
+                    Label("Достижения", systemImage: "trophy.fill")
                 }
                 .tag(3)
+            
+            StatsView()
+                .tabItem {
+                    Label("Статистика", systemImage: "chart.bar.fill")
+                }
+                .tag(4)
         }
         .accentColor(.purple)
     }

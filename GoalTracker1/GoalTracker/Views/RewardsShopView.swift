@@ -1,3 +1,10 @@
+//
+//  RewardsShopView.swift
+//  GoalTracker
+//
+//  Created by Ilyas on 11/5/25.
+//
+
 import SwiftUI
 
 struct RewardsShopView: View {
@@ -209,16 +216,12 @@ struct RewardCardView: View {
         goalManager.userProfile.coins >= reward.cost
     }
     
-    var canPurchase: Bool {
-        canAfford && (reward.isReusable || !reward.isPurchased)
-    }
-    
     var body: some View {
         Button {
             showingDetail = true
         } label: {
             VStack(spacing: 12) {
-                // Icon (фиксированный размер)
+                // Icon
                 ZStack {
                     Circle()
                         .fill(
@@ -226,48 +229,33 @@ struct RewardCardView: View {
                             LinearGradient(colors: [.green.opacity(0.3), .green.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing) :
                             LinearGradient(colors: [categoryColor.opacity(0.3), categoryColor.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing)
                         )
-                        .frame(width: 70, height: 70) // Фиксированный размер!
+                        .frame(width: 80, height: 80)
                     
                     Image(systemName: reward.icon)
-                        .font(.system(size: 30)) // Фиксированный размер иконки
+                        .font(.system(size: 35))
                         .foregroundColor(reward.isPurchased ? .green : categoryColor)
                     
                     if reward.isPurchased {
-                        // Показываем количество покупок для многоразовых
-                        if reward.isReusable && reward.purchaseCount > 1 {
-                            Circle()
-                                .fill(Color.blue)
-                                .frame(width: 24, height: 24)
-                                .overlay(
-                                    Text("\(reward.purchaseCount)")
-                                        .font(.caption2)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
-                                )
-                                .offset(x: 28, y: -28)
-                        } else {
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: 24, height: 24)
-                                .overlay(
-                                    Image(systemName: "checkmark")
-                                        .font(.caption)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
-                                )
-                                .offset(x: 28, y: -28)
-                        }
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 24, height: 24)
+                            .overlay(
+                                Image(systemName: "checkmark")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                            )
+                            .offset(x: 30, y: -30)
                     }
                 }
                 
-                // Title (фиксированная высота)
+                // Title
                 Text(reward.title)
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .foregroundColor(.primary)
-                    .frame(height: 36) // Фиксированная высота для 2 строк
                 
                 // Cost
                 HStack(spacing: 4) {
@@ -280,32 +268,18 @@ struct RewardCardView: View {
                         .foregroundColor(canAfford ? .primary : .red)
                 }
                 
-                // Status badge
-                if reward.isReusable {
-                    Text("♻️ Многоразовая")
-                        .font(.caption2)
-                        .foregroundColor(.blue)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.blue.opacity(0.2))
-                        .cornerRadius(6)
-                } else if reward.isPurchased {
-                    Text("✓ Куплено")
+                if reward.isPurchased {
+                    Text("Куплено")
                         .font(.caption2)
                         .foregroundColor(.green)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                         .background(Color.green.opacity(0.2))
-                        .cornerRadius(6)
-                } else {
-                    Text(" ")
-                        .font(.caption2)
-                        .frame(height: 18) // Пустое место чтобы высота была одинаковой
+                        .cornerRadius(8)
                 }
             }
             .padding()
             .frame(maxWidth: .infinity)
-            .frame(height: 200) // ФИКСИРОВАННАЯ ВЫСОТА КАРТОЧКИ!
             .background(Color(.systemBackground))
             .cornerRadius(16)
             .shadow(color: reward.isPurchased ? Color.green.opacity(0.2) : Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
@@ -327,8 +301,6 @@ struct RewardCardView: View {
         case .entertainment: return .blue
         case .fitness: return .green
         case .shopping: return .pink
-        case .selfCare: return .cyan
-        case .social: return .indigo
         case .bigGoal: return .yellow
         }
     }
@@ -342,10 +314,6 @@ struct RewardDetailView: View {
     
     var canAfford: Bool {
         goalManager.userProfile.coins >= reward.cost
-    }
-    
-    var canPurchase: Bool {
-        canAfford && (reward.isReusable || !reward.isPurchased)
     }
     
     var body: some View {
@@ -416,86 +384,15 @@ struct RewardDetailView: View {
                         .padding()
                         .background(Color.gray.opacity(0.1))
                         .cornerRadius(12)
-                        
-                        // Тип награды
-                        if reward.isReusable {
-                            HStack {
-                                Image(systemName: "repeat.circle.fill")
-                                    .foregroundColor(.blue)
-                                Text("Можно покупать много раз")
-                                    .font(.subheadline)
-                            }
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.blue.opacity(0.1))
-                            .cornerRadius(12)
-                        }
                     }
                     
-                    // История покупок
-                    if !reward.purchaseHistory.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("История покупок (\(reward.purchaseCount))")
-                                .font(.headline)
-                            
-                            ForEach(reward.purchaseHistory.reversed().prefix(5), id: \.self) { date in
-                                HStack {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                    
-                                    Text(date.formatted(date: .abbreviated, time: .shortened))
-                                        .font(.subheadline)
-                                    
-                                    Spacer()
-                                }
-                                .padding()
-                                .background(Color.green.opacity(0.05))
-                                .cornerRadius(8)
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-                    
-                    // Кнопка покупки
-                    if canPurchase {
-                        Button {
-                            showingConfirmation = true
-                        } label: {
-                            Text(reward.isPurchased ? "Купить еще раз" : "Купить награду")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.purple)
-                                .cornerRadius(12)
-                        }
-                        .padding(.horizontal)
-                    } else if !canAfford {
+                    if reward.isPurchased {
                         VStack(spacing: 12) {
-                            Text("Недостаточно монет")
-                                .font(.headline)
-                                .foregroundColor(.red)
-                            
-                            Text("Нужно еще \(reward.cost - goalManager.userProfile.coins) монет")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.red.opacity(0.1))
-                        .cornerRadius(12)
-                        .padding(.horizontal)
-                    } else if !reward.isReusable && reward.isPurchased {
-                        VStack(spacing: 12) {
-                            Image(systemName: "checkmark.seal.fill")
-                                .font(.system(size: 50))
-                                .foregroundColor(.green)
-                            
-                            Text("Награда уже куплена!")
+                            Text("✅ Награда получена!")
                                 .font(.headline)
                                 .foregroundColor(.green)
                             
-                            if let date = reward.lastPurchaseDate {
+                            if let date = reward.purchaseDate {
                                 Text("Куплено: \(date.formatted(date: .long, time: .shortened))")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
@@ -504,7 +401,26 @@ struct RewardDetailView: View {
                         .padding()
                         .background(Color.green.opacity(0.1))
                         .cornerRadius(12)
+                    } else {
+                        Button {
+                            showingConfirmation = true
+                        } label: {
+                            Text(canAfford ? "Купить награду" : "Недостаточно монет")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(canAfford ? Color.purple : Color.gray)
+                                .cornerRadius(12)
+                        }
+                        .disabled(!canAfford)
                         .padding(.horizontal)
+                        
+                        if !canAfford {
+                            Text("Нужно еще \(reward.cost - goalManager.userProfile.coins) монет")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
                     }
                 }
                 .padding()
@@ -522,15 +438,11 @@ struct RewardDetailView: View {
                 Button("Отмена", role: .cancel) { }
                 Button("Купить за \(reward.cost) монет") {
                     if goalManager.purchaseReward(reward) {
-                        if !reward.isReusable {
-                            dismiss()
-                        }
+                        dismiss()
                     }
                 }
             } message: {
-                Text(reward.isReusable ?
-                     "Потратить \(reward.cost) монет на \"\(reward.title)\"?" :
-                     "Вы уверены что хотите купить \"\(reward.title)\"?")
+                Text("Вы уверены что хотите купить \"\(reward.title)\"?")
             }
         }
     }
@@ -542,8 +454,6 @@ struct RewardDetailView: View {
         case .entertainment: return .blue
         case .fitness: return .green
         case .shopping: return .pink
-        case .selfCare: return .cyan
-        case .social: return .indigo
         case .bigGoal: return .yellow
         }
     }

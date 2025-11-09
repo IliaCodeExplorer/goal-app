@@ -1,9 +1,16 @@
+//
+//  GoalTemplatesView.swift
+//  GoalTracker
+//
+//  Created by Ilyas on 11/5/25.
+//
+
 import SwiftUI
 
 struct GoalTemplatesView: View {
     @EnvironmentObject var goalManager: GoalManager
     @Environment(\.dismiss) var dismiss
-    @State private var selectedCategory: String?
+    @State private var selectedCategory: GoalCategory?
     
     var body: some View {
         NavigationView {
@@ -26,13 +33,21 @@ struct GoalTemplatesView: View {
                     .padding()
                     
                     // Categories
-                    CategoryButton(id: "muslim", name: "Мусульманин", icon: "moon.stars.fill", color: .indigo, selectedCategory: $selectedCategory)
-                    CategoryButton(id: "fitness", name: "Спорт", icon: "figure.run", color: .red, selectedCategory: $selectedCategory)
-                    CategoryButton(id: "business", name: "Бизнес", icon: "briefcase.fill", color: .blue, selectedCategory: $selectedCategory)
-                    CategoryButton(id: "achiever", name: "Достигатор", icon: "star.fill", color: .orange, selectedCategory: $selectedCategory)
-                    CategoryButton(id: "family", name: "Семья", icon: "heart.fill", color: .pink, selectedCategory: $selectedCategory)
-                    CategoryButton(id: "health", name: "Здоровье", icon: "heart.text.square.fill", color: .green, selectedCategory: $selectedCategory)
-                    CategoryButton(id: "learning", name: "Обучение", icon: "book.fill", color: .purple, selectedCategory: $selectedCategory)
+                    ForEach(GoalCategory.allCases, id: \.self) { category in
+                        CategorySectionView(
+                            category: category,
+                            isExpanded: selectedCategory == category,
+                            onTap: {
+                                withAnimation {
+                                    if selectedCategory == category {
+                                        selectedCategory = nil
+                                    } else {
+                                        selectedCategory = category
+                                    }
+                                }
+                            }
+                        )
+                    }
                 }
                 .padding(.vertical)
             }
@@ -49,43 +64,29 @@ struct GoalTemplatesView: View {
     }
 }
 
-struct CategoryButton: View {
+struct CategorySectionView: View {
     @EnvironmentObject var goalManager: GoalManager
     @Environment(\.dismiss) var dismiss
-    let id: String
-    let name: String
-    let icon: String
-    let color: Color
-    @Binding var selectedCategory: String?
+    let category: GoalCategory
+    let isExpanded: Bool
+    let onTap: () -> Void
     
     var templates: [GoalTemplate] {
-        GoalTemplateManager.shared.templates(for: id)
-    }
-    
-    var isExpanded: Bool {
-        selectedCategory == id
+        GoalTemplateManager.shared.templates(for: category)
     }
     
     var body: some View {
         VStack(spacing: 0) {
             // Category Header
-            Button {
-                withAnimation {
-                    if selectedCategory == id {
-                        selectedCategory = nil
-                    } else {
-                        selectedCategory = id
-                    }
-                }
-            } label: {
+            Button(action: onTap) {
                 HStack {
-                    Image(systemName: icon)
+                    Image(systemName: category.icon)
                         .font(.title2)
                         .foregroundColor(.white)
                         .frame(width: 50, height: 50)
                         .background(
                             LinearGradient(
-                                colors: [color, color.opacity(0.7)],
+                                colors: [categoryColor, categoryColor.opacity(0.7)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -93,7 +94,7 @@ struct CategoryButton: View {
                         .cornerRadius(12)
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(name)
+                        Text(category.rawValue)
                             .font(.headline)
                         
                         Text("\(templates.count) целей")
@@ -124,7 +125,6 @@ struct CategoryButton: View {
                                 description: template.description,
                                 frequency: template.frequency,
                                 trackingType: template.trackingType,
-                                difficulty: template.difficulty,
                                 targetValue: template.targetValue,
                                 icon: template.icon,
                                 isRepeating: true
@@ -139,6 +139,18 @@ struct CategoryButton: View {
             }
         }
         .padding(.horizontal)
+    }
+    
+    private var categoryColor: Color {
+        switch category {
+        case .muslim: return .indigo
+        case .fitness: return .red
+        case .business: return .blue
+        case .achiever: return .orange
+        case .family: return .pink
+        case .health: return .green
+        case .learning: return .purple
+        }
     }
 }
 
@@ -157,13 +169,10 @@ struct TemplateRowView: View {
                     .cornerRadius(8)
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(template.difficulty.emoji)
-                        Text(template.title)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
-                    }
+                    Text(template.title)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
                     
                     HStack {
                         Text(template.frequency.rawValue)
@@ -177,7 +186,7 @@ struct TemplateRowView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
-                        if template.trackingType == .numeric || template.trackingType == .habit {
+                        if template.trackingType == .numeric {
                             Text("•")
                                 .foregroundColor(.secondary)
                             

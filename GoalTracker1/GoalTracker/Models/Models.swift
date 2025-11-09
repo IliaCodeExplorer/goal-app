@@ -201,8 +201,8 @@ struct Reward: Identifiable, Codable {
     var cost: Int
     var icon: String
     var category: RewardCategory
-    var isReusable: Bool // НОВОЕ: можно покупать много раз
-    var purchaseHistory: [Date] // НОВОЕ: история покупок
+    var isPurchased: Bool
+    var purchaseDate: Date?
     
     init(
         id: UUID = UUID(),
@@ -211,8 +211,8 @@ struct Reward: Identifiable, Codable {
         cost: Int,
         icon: String,
         category: RewardCategory,
-        isReusable: Bool = false,
-        purchaseHistory: [Date] = []
+        isPurchased: Bool = false,
+        purchaseDate: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -220,32 +220,18 @@ struct Reward: Identifiable, Codable {
         self.cost = cost
         self.icon = icon
         self.category = category
-        self.isReusable = isReusable
-        self.purchaseHistory = purchaseHistory
-    }
-    
-    var isPurchased: Bool {
-        !purchaseHistory.isEmpty
-    }
-    
-    var purchaseCount: Int {
-        purchaseHistory.count
-    }
-    
-    var lastPurchaseDate: Date? {
-        purchaseHistory.last
+        self.isPurchased = isPurchased
+        self.purchaseDate = purchaseDate
     }
 }
 
 enum RewardCategory: String, Codable, CaseIterable {
-    case virtual = "Виртуальное"
-    case food = "Еда"
-    case entertainment = "Развлечения"
-    case fitness = "Фитнес"
-    case shopping = "Покупки"
-    case selfCare = "Забота о себе"
-    case social = "Социальное"
-    case bigGoal = "Большая цель"
+    case virtual = "Virtual"
+    case food = "Food"
+    case entertainment = "Entertainment"
+    case fitness = "Fitness"
+    case shopping = "Shopping"
+    case bigGoal = "Big Goal"
     
     var icon: String {
         switch self {
@@ -254,8 +240,6 @@ enum RewardCategory: String, Codable, CaseIterable {
         case .entertainment: return "gamecontroller.fill"
         case .fitness: return "figure.run"
         case .shopping: return "bag.fill"
-        case .selfCare: return "heart.circle.fill"
-        case .social: return "person.2.fill"
         case .bigGoal: return "star.fill"
         }
     }
@@ -271,8 +255,6 @@ struct UserProfile: Codable {
     var lastActivityDate: Date
     var totalGoalsCompleted: Int
     var characterStats: CharacterStats
-    var health: Int // HP персонажа (0-100)
-    var maxHealth: Int
     
     init(
         coins: Int = 0,
@@ -282,9 +264,7 @@ struct UserProfile: Codable {
         longestStreak: Int = 0,
         lastActivityDate: Date = Date(),
         totalGoalsCompleted: Int = 0,
-        characterStats: CharacterStats = CharacterStats(),
-        health: Int = 100,
-        maxHealth: Int = 100
+        characterStats: CharacterStats = CharacterStats()
     ) {
         self.coins = coins
         self.level = level
@@ -294,8 +274,6 @@ struct UserProfile: Codable {
         self.lastActivityDate = lastActivityDate
         self.totalGoalsCompleted = totalGoalsCompleted
         self.characterStats = characterStats
-        self.health = health
-        self.maxHealth = maxHealth
     }
     
     var xpToNextLevel: Int {
@@ -304,16 +282,6 @@ struct UserProfile: Codable {
     
     var levelProgress: Double {
         return Double(xp) / Double(xpToNextLevel)
-    }
-    
-    var healthPercentage: Double {
-        return Double(health) / Double(maxHealth)
-    }
-    
-    var healthColor: Color {
-        if healthPercentage > 0.6 { return .green }
-        if healthPercentage > 0.3 { return .orange }
-        return .red
     }
 }
 
@@ -398,18 +366,18 @@ enum StatCategory: String, CaseIterable, Codable {
         }
     }
     
-//    static func fromGoalCategory(_ category: GoalCategory) -> StatCategory {
-//        switch category {
-//        case .fitness: return .physical
-//        case .learning: return .mental
-//        case .health: return .health
-//        case .business: return .career
-//        case .family: return .social
-//        case .achiever: return .discipline
-//        case .muslim: return .discipline
+    static func fromGoalCategory(_ category: GoalCategory) -> StatCategory {
+        switch category {
+        case .fitness: return .physical
+        case .learning: return .mental
+        case .health: return .health
+        case .business: return .career
+        case .family: return .social
+        case .achiever: return .discipline
+        case .muslim: return .discipline
         }
-//    }
-//}
+    }
+}
 
 enum BodyType: String, Codable {
     case overweight = "Начинающий"

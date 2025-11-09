@@ -13,10 +13,6 @@ struct DashboardView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 20) {
-                            // HP Bar (вверху)
-                            HealthBarView()
-                                .padding(.horizontal)
-                            
                             // Header Stats
                             HeaderStatsView()
                                 .padding(.horizontal)
@@ -62,40 +58,10 @@ struct DashboardView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                         .zIndex(100)
                 }
-                
-                // Level Up Notification
-                if goalManager.showLevelUpNotification {
-                    LevelUpNotificationView(level: goalManager.userProfile.level)
-                        .transition(AnyTransition.scale.combined(with: AnyTransition.opacity))
-                        .zIndex(101)
-                }
-                
-                // Coin Animation
-                if goalManager.showCoinAnimation {
-                    CoinAnimationView(amount: goalManager.coinsEarned)
-                        .zIndex(99)
-                }
-                
-                // Screen Flash Effects
-                ScreenFlashView(isActive: $goalManager.showDamageFlash, type: .damage)
-                    .zIndex(999)
-                
-                ScreenFlashView(isActive: $goalManager.showHealFlash, type: .success)
-                    .zIndex(999)
-                
-                // Floating Damage/Heal Numbers
-                if goalManager.showFloatingNumber, let number = goalManager.floatingNumber {
-                    VStack {
-                        Spacer()
-                        FloatingNumberView(value: abs(number), isPositive: number > 0)
-                            .padding(.bottom, 100)
-                    }
-                    .zIndex(998)
-                }
             }
             .navigationTitle("Мои цели")
             .toolbar {
-                ToolbarItemGroup(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         showingTemplates = true
                     } label: {
@@ -104,7 +70,7 @@ struct DashboardView: View {
                     }
                 }
                 
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showingAddGoal = true
                     } label: {
@@ -126,79 +92,6 @@ struct DashboardView: View {
     }
 }
 
-// MARK: - Health Bar View
-struct HealthBarView: View {
-    @EnvironmentObject var goalManager: GoalManager
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            HStack {
-                HStack(spacing: 6) {
-                    Image(systemName: "heart.fill")
-                        .foregroundColor(goalManager.userProfile.healthColor)
-                    
-                    Text("HP")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                }
-                
-                Spacer()
-                
-                Text("\(goalManager.userProfile.health)/\(goalManager.userProfile.maxHealth)")
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                    .foregroundColor(goalManager.userProfile.healthColor)
-            }
-            
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    // Background
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(height: 20)
-                    
-                    // HP Bar
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(
-                            LinearGradient(
-                                colors: [goalManager.userProfile.healthColor, goalManager.userProfile.healthColor.opacity(0.7)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(
-                            width: geometry.size.width * CGFloat(goalManager.userProfile.healthPercentage),
-                            height: 20
-                        )
-                        .animation(.spring(response: 0.5, dampingFraction: 0.6), value: goalManager.userProfile.health)
-                    
-                    // Shine effect
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.3), Color.clear],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .frame(
-                            width: geometry.size.width * CGFloat(goalManager.userProfile.healthPercentage),
-                            height: 10
-                        )
-                }
-            }
-            .frame(height: 20)
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemBackground))
-                .shadow(color: goalManager.userProfile.healthColor.opacity(0.2), radius: 5, x: 0, y: 2)
-        )
-    }
-}
-
-// MARK: - Header Stats View
 struct HeaderStatsView: View {
     @EnvironmentObject var goalManager: GoalManager
     
@@ -225,7 +118,6 @@ struct HeaderStatsView: View {
     }
 }
 
-// MARK: - Stat Box View
 struct StatBoxView: View {
     let title: String
     let value: String
@@ -248,7 +140,6 @@ struct StatBoxView: View {
     }
 }
 
-// MARK: - Empty State View
 struct EmptyStateView: View {
     @Binding var showingAddGoal: Bool
     @Binding var showingTemplates: Bool

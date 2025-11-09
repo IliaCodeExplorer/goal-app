@@ -1,3 +1,10 @@
+//
+//  AddRewardView.swift
+//  GoalTracker
+//
+//  Created by Ilyas on 11/5/25.
+//
+
 import SwiftUI
 
 struct AddRewardView: View {
@@ -10,7 +17,6 @@ struct AddRewardView: View {
     @State private var selectedCategory: RewardCategory = .food
     @State private var selectedIcon: String = "gift.fill"
     @State private var showingIconPicker = false
-    @State private var isReusable: Bool = true // По умолчанию многоразовая
     
     var body: some View {
         NavigationView {
@@ -74,19 +80,6 @@ struct AddRewardView: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    
-                    Toggle("Многоразовая награда", isOn: $isReusable)
-                        .toggleStyle(SwitchToggleStyle(tint: .purple))
-                    
-                    if isReusable {
-                        Text("Можно будет покупать много раз")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("Можно купить только один раз")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
                 }
                 
                 Section {
@@ -130,8 +123,7 @@ struct AddRewardView: View {
             description: description,
             cost: costValue,
             icon: selectedIcon,
-            category: selectedCategory,
-            isReusable: isReusable
+            category: selectedCategory
         )
         
         goalManager.addCustomReward(newReward)
@@ -145,8 +137,6 @@ struct AddRewardView: View {
         case .entertainment: return .blue
         case .fitness: return .green
         case .shopping: return .pink
-        case .selfCare: return .cyan
-        case .social: return .indigo
         case .bigGoal: return .yellow
         }
     }

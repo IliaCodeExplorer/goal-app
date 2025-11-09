@@ -12,10 +12,6 @@ class GoalManager: ObservableObject {
     @Published var showLevelUpNotification = false
     @Published var showCoinAnimation = false
     @Published var coinsEarned: Int = 0
-    @Published var showDamageFlash = false
-    @Published var showHealFlash = false
-    @Published var floatingNumber: Int?
-    @Published var showFloatingNumber = false
     
     private let goalsKey = "saved_goals"
     private let achievementsKey = "saved_achievements"
@@ -166,10 +162,6 @@ class GoalManager: ObservableObject {
                 addXP(coins)
                 updateStreak()
                 
-                // ЛЕЧЕНИЕ HP за успех
-                let healing = updatedGoal.difficulty == .easy ? 3 : 5
-                applyHealing(healing)
-                
                 // Небольшая прокачка за привычку
                 updateCharacterStats(for: updatedGoal, isHabit: true)
             }
@@ -293,11 +285,6 @@ class GoalManager: ObservableObject {
             if updatedGoal.trackingType == .habit {
                 let penalty = updatedGoal.difficulty == .easy ? 3 : 5
                 userProfile.coins = max(0, userProfile.coins - penalty)
-                
-                // УРОН HP
-                let healthDamage = updatedGoal.difficulty == .easy ? 5 : 10
-                applyDamage(healthDamage)
-                
                 saveProfile()
             }
             
@@ -306,52 +293,14 @@ class GoalManager: ObservableObject {
         }
     }
     
-    // MARK: - Health Management
-    func applyDamage(_ amount: Int) {
-        userProfile.health = max(0, userProfile.health - amount)
-        
-        // Показать эффект урона
-        floatingNumber = -amount
-        showFloatingNumber = true
-        showDamageFlash = true
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            self.showFloatingNumber = false
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            self.showDamageFlash = false
-        }
-        
-        saveProfile()
-    }
-    
-    func applyHealing(_ amount: Int) {
-        userProfile.health = min(userProfile.maxHealth, userProfile.health + amount)
-        
-        // Показать эффект лечения
-        floatingNumber = amount
-        showFloatingNumber = true
-        showHealFlash = true
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            self.showFloatingNumber = false
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            self.showHealFlash = false
-        }
-        
-        saveProfile()
-    }
-    
     // MARK: - Reward Management
     func purchaseReward(_ reward: Reward) -> Bool {
         guard spendCoins(reward.cost) else { return false }
         
         if let index = rewards.firstIndex(where: { $0.id == reward.id }) {
             var updatedReward = rewards[index]
-            updatedReward.purchaseHistory.append(Date())
+            updatedReward.isPurchased = true
+            updatedReward.purchaseDate = Date()
             rewards[index] = updatedReward
         }
         
@@ -367,13 +316,6 @@ class GoalManager: ObservableObject {
     func deleteReward(_ reward: Reward) {
         rewards.removeAll { $0.id == reward.id }
         saveRewards()
-    }
-    
-    func updateReward(_ reward: Reward) {
-        if let index = rewards.firstIndex(where: { $0.id == reward.id }) {
-            rewards[index] = reward
-            saveRewards()
-        }
     }
     
     // MARK: - Repeating Goals

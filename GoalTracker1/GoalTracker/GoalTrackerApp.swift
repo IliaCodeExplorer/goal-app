@@ -1,18 +1,13 @@
-//
-//  GoalTrackerApp.swift
-//  GoalTracker
-//
-//  Created by Ilyas on 11/5/25.
-//
-
 import SwiftUI
 
 @main
 struct GoalTrackerApp: App {
+    @StateObject private var goalManager = GoalManager()
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(GoalManager())
+                .environmentObject(goalManager)
         }
     }
 }

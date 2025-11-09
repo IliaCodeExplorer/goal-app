@@ -1,17 +1,32 @@
 import SwiftUI
 
-struct AddGoalView: View {
+struct EditGoalView: View {
     @EnvironmentObject var goalManager: GoalManager
     @Environment(\.dismiss) var dismiss
     
-    @State private var title: String = ""
-    @State private var description: String = ""
-    @State private var selectedFrequency: Frequency = .daily
-    @State private var selectedTrackingType: TrackingType = .numeric
-    @State private var targetValue: String = ""
-    @State private var selectedIcon: String = "target"
+    let goal: Goal
+    
+    @State private var title: String
+    @State private var description: String
+    @State private var selectedFrequency: Frequency
+    @State private var selectedTrackingType: TrackingType
+    @State private var selectedDifficulty: Difficulty
+    @State private var targetValue: String
+    @State private var selectedIcon: String
     @State private var showingIconPicker = false
-    @State private var isRepeating: Bool = false
+    @State private var isRepeating: Bool
+    
+    init(goal: Goal) {
+        self.goal = goal
+        _title = State(initialValue: goal.title)
+        _description = State(initialValue: goal.description)
+        _selectedFrequency = State(initialValue: goal.frequency)
+        _selectedTrackingType = State(initialValue: goal.trackingType)
+        _selectedDifficulty = State(initialValue: goal.difficulty)
+        _targetValue = State(initialValue: String(Int(goal.targetValue)))
+        _selectedIcon = State(initialValue: goal.icon)
+        _isRepeating = State(initialValue: goal.isRepeating)
+    }
     
     var body: some View {
         NavigationView {
@@ -45,6 +60,32 @@ struct AddGoalView: View {
                             .font(.body)
                     }
                     
+                    Section("Сложность") {
+                        Picker("Уровень сложности", selection: $selectedDifficulty) {
+                            ForEach(Difficulty.allCases, id: \.self) { difficulty in
+                                HStack {
+                                    Text(difficulty.emoji)
+                                    Text(difficulty.rawValue)
+                                }
+                                .tag(difficulty)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        
+                        HStack {
+                            Text("Награда:")
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            HStack(spacing: 4) {
+                                Image(systemName: "dollarsign.circle.fill")
+                                    .foregroundColor(.yellow)
+                                Text("\(selectedDifficulty.coinMultiplier)")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .font(.subheadline)
+                    }
+                    
                     Section("Частота") {
                         Picker("Как часто?", selection: $selectedFrequency) {
                             ForEach(Frequency.allCases, id: \.self) { frequency in
@@ -64,54 +105,30 @@ struct AddGoalView: View {
                     }
                     
                     Section("Тип отслеживания") {
-                        // Улучшенный выбор типа с полной кликабельностью
-                        VStack(spacing: 12) {
+                        Picker("Тип", selection: $selectedTrackingType) {
                             ForEach(TrackingType.allCases, id: \.self) { type in
-                                Button(action: {
-                                    selectedTrackingType = type
-                                }) {
-                                    HStack(spacing: 12) {
-                                        Image(systemName: type.icon)
-                                            .font(.title3)
-                                            .foregroundColor(selectedTrackingType == type ? .white : .blue)
-                                            .frame(width: 32)
-                                        
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(type.rawValue)
-                                                .font(.headline)
-                                                .foregroundColor(selectedTrackingType == type ? .white : .primary)
-                                            
-                                            Text(typeDescription(type))
-                                                .font(.caption)
-                                                .foregroundColor(selectedTrackingType == type ? .white.opacity(0.8) : .secondary)
-                                        }
-                                        
-                                        Spacer()
-                                        
-                                        if selectedTrackingType == type {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(.white)
-                                        }
-                                    }
-                                    .padding()
-                                    .background(selectedTrackingType == type ? Color.blue : Color(.systemGray6))
-                                    .cornerRadius(12)
+                                HStack {
+                                    Image(systemName: type.icon)
+                                    Text(type.rawValue)
                                 }
-                                .buttonStyle(PlainButtonStyle())
+                                .tag(type)
                             }
                         }
+                        .pickerStyle(.segmented)
                         
-                        if selectedTrackingType != .binary {
+                        if selectedTrackingType == .binary {
+                            Text("Да/Нет отслеживание - Завершено или не завершено")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Целевое значение")
                                     .font(.subheadline)
-                                    .fontWeight(.semibold)
                                 
                                 TextField("Введите число", text: $targetValue)
                                     .keyboardType(.decimalPad)
                                     .textFieldStyle(.roundedBorder)
                                     .onChange(of: targetValue) { oldValue, newValue in
-                                        // Фильтруем только числа и точку
                                         let filtered = newValue.filter { $0.isNumber || $0 == "." }
                                         if filtered != newValue {
                                             targetValue = filtered
@@ -122,11 +139,9 @@ struct AddGoalView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
-                            .padding(.top, 8)
                         }
                     }
                     
-                    // Добавляем пространство для кнопки
                     Section {
                         Color.clear
                             .frame(height: 80)
@@ -141,7 +156,7 @@ struct AddGoalView: View {
                     } label: {
                         HStack {
                             Spacer()
-                            Text("Создать цель")
+                            Text("Сохранить изменения")
                                 .fontWeight(.semibold)
                                 .foregroundColor(.white)
                             Spacer()
@@ -159,7 +174,7 @@ struct AddGoalView: View {
                     )
                 }
             }
-            .navigationTitle("Новая цель")
+            .navigationTitle("Редактировать цель")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -174,26 +189,12 @@ struct AddGoalView: View {
         }
     }
     
-    // MARK: - Helper Functions
-    
-    private func typeDescription(_ type: TrackingType) -> String {
-        switch type {
-        case .binary:
-            return "Да/Нет - выполнено или провалено"
-        case .numeric:
-            return "Отслеживание числового значения"
-        case .habit:
-            return "Ежедневная привычка с наградами"
-        }
-    }
-    
     private var isFormValid: Bool {
         if title.isEmpty {
             return false
         }
         
         if selectedTrackingType == .numeric || selectedTrackingType == .habit {
-            // Проверяем что targetValue содержит корректное число
             let filtered = targetValue.filter { $0.isNumber || $0 == "." }
             guard let value = Double(filtered), value > 0 else {
                 return false
@@ -213,27 +214,30 @@ struct AddGoalView: View {
             target = Double(filtered) ?? 0
         }
         
-        // Дополнительная проверка перед сохранением
-        guard target > 0 else {
-            return
-        }
+        guard target > 0 else { return }
         
-        let newGoal = Goal(
-            title: title,
-            description: description,
-            frequency: selectedFrequency,
-            trackingType: selectedTrackingType,
-            targetValue: target,
-            icon: selectedIcon,
-            isRepeating: isRepeating
-        )
+        var updatedGoal = goal
+        updatedGoal.title = title
+        updatedGoal.description = description
+        updatedGoal.frequency = selectedFrequency
+        updatedGoal.trackingType = selectedTrackingType
+        updatedGoal.difficulty = selectedDifficulty
+        updatedGoal.targetValue = target
+        updatedGoal.icon = selectedIcon
+        updatedGoal.isRepeating = isRepeating
         
-        goalManager.addGoal(newGoal)
+        goalManager.updateGoal(updatedGoal)
         dismiss()
     }
 }
 
 #Preview {
-    AddGoalView()
-        .environmentObject(GoalManager())
+    EditGoalView(goal: Goal(
+        title: "Тестовая цель",
+        frequency: .daily,
+        trackingType: .numeric,
+        difficulty: .medium,
+        targetValue: 10
+    ))
+    .environmentObject(GoalManager())
 }

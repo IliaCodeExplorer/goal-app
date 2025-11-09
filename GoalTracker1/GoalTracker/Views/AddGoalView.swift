@@ -64,48 +64,25 @@ struct AddGoalView: View {
                     }
                     
                     Section("Тип отслеживания") {
-                        // Улучшенный выбор типа с полной кликабельностью
-                        VStack(spacing: 12) {
+                        Picker("Тип", selection: $selectedTrackingType) {
                             ForEach(TrackingType.allCases, id: \.self) { type in
-                                Button(action: {
-                                    selectedTrackingType = type
-                                }) {
-                                    HStack(spacing: 12) {
-                                        Image(systemName: type.icon)
-                                            .font(.title3)
-                                            .foregroundColor(selectedTrackingType == type ? .white : .blue)
-                                            .frame(width: 32)
-                                        
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(type.rawValue)
-                                                .font(.headline)
-                                                .foregroundColor(selectedTrackingType == type ? .white : .primary)
-                                            
-                                            Text(typeDescription(type))
-                                                .font(.caption)
-                                                .foregroundColor(selectedTrackingType == type ? .white.opacity(0.8) : .secondary)
-                                        }
-                                        
-                                        Spacer()
-                                        
-                                        if selectedTrackingType == type {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(.white)
-                                        }
-                                    }
-                                    .padding()
-                                    .background(selectedTrackingType == type ? Color.blue : Color(.systemGray6))
-                                    .cornerRadius(12)
+                                HStack {
+                                    Image(systemName: type.icon)
+                                    Text(type.rawValue)
                                 }
-                                .buttonStyle(PlainButtonStyle())
+                                .tag(type)
                             }
                         }
+                        .pickerStyle(.segmented)
                         
-                        if selectedTrackingType != .binary {
+                        if selectedTrackingType == .binary {
+                            Text("Да/Нет отслеживание - Завершено или не завершено")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Целевое значение")
                                     .font(.subheadline)
-                                    .fontWeight(.semibold)
                                 
                                 TextField("Введите число", text: $targetValue)
                                     .keyboardType(.decimalPad)
@@ -122,7 +99,6 @@ struct AddGoalView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
-                            .padding(.top, 8)
                         }
                     }
                     
@@ -174,25 +150,12 @@ struct AddGoalView: View {
         }
     }
     
-    // MARK: - Helper Functions
-    
-    private func typeDescription(_ type: TrackingType) -> String {
-        switch type {
-        case .binary:
-            return "Да/Нет - выполнено или провалено"
-        case .numeric:
-            return "Отслеживание числового значения"
-        case .habit:
-            return "Ежедневная привычка с наградами"
-        }
-    }
-    
     private var isFormValid: Bool {
         if title.isEmpty {
             return false
         }
         
-        if selectedTrackingType == .numeric || selectedTrackingType == .habit {
+        if selectedTrackingType == .numeric {
             // Проверяем что targetValue содержит корректное число
             let filtered = targetValue.filter { $0.isNumber || $0 == "." }
             guard let value = Double(filtered), value > 0 else {
