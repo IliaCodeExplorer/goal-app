@@ -131,7 +131,7 @@ struct AddRewardView: View {
             cost: costValue,
             icon: selectedIcon,
             category: selectedCategory,
-            isReusable: isReusable
+//            isReusable: isReusable
         )
         
         goalManager.addCustomReward(newReward)

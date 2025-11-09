@@ -91,15 +91,15 @@ struct CoinAnimationView: View {
             ForEach(coins) { coin in
                 Image(systemName: "dollarsign.circle.fill")
                     .font(.system(size: 30))
-                    .foregroundColor(.yellow)
+                    .foregroundColor(amount > 0 ? .yellow : .red)
                     .offset(coin.offset)
                     .opacity(coin.opacity)
                     .scaleEffect(coin.scale)
             }
             
-            Text("+\(amount)")
+            Text(amount > 0 ? "+\(amount)" : "\(amount)")
                 .font(.system(size: 48, weight: .bold))
-                .foregroundColor(.yellow)
+                .foregroundColor(amount > 0 ? .yellow : .red)
                 .shadow(color: .black.opacity(0.3), radius: 2)
         }
         .onAppear {
@@ -108,8 +108,16 @@ struct CoinAnimationView: View {
     }
     
     private func createCoins() {
-        for i in 0..<min(amount / 10, 10) {
-            let angle = Double(i) * (360.0 / 10.0) * .pi / 180
+        // CRITICAL FIX: Guard против 0 и безопасное деление
+        guard amount != 0 else { return }
+        
+        let absAmount = abs(amount)
+        let numberOfCoins = min(absAmount / max(10, 1), 20) // Безопасное деление
+        
+        guard numberOfCoins > 0 else { return } // Дополнительная проверка
+        
+        for i in 0..<numberOfCoins {
+            let angle = Double(i) * (360.0 / Double(numberOfCoins)) * .pi / 180
             let radius: CGFloat = 100
             
             let coin = CoinParticle(
@@ -121,12 +129,14 @@ struct CoinAnimationView: View {
             coins.append(coin)
             
             withAnimation(.easeOut(duration: 1).delay(Double(i) * 0.05)) {
-                coins[i].offset = CGSize(
-                    width: cos(angle) * radius,
-                    height: sin(angle) * radius
-                )
-                coins[i].opacity = 0
-                coins[i].scale = 0.3
+                if i < coins.count { // Безопасный доступ
+                    coins[i].offset = CGSize(
+                        width: cos(angle) * radius,
+                        height: sin(angle) * radius
+                    )
+                    coins[i].opacity = 0
+                    coins[i].scale = 0.3
+                }
             }
         }
     }
@@ -136,13 +146,8 @@ struct CoinAnimationView: View {
     VStack(spacing: 40) {
         LevelUpNotificationView(level: 5)
         CoinAnimationView(amount: 100)
+        CoinAnimationView(amount: -25)
     }
     .padding()
     .background(Color.black.opacity(0.3))
-}//
-//  Levelupcomponents .swift
-//  GoalTracker
-//
-//  Created by Ilyas on 11/7/25.
-//
-
+}

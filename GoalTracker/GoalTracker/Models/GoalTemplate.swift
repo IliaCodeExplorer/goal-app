@@ -1,19 +1,54 @@
 import Foundation
 
+// VERSION 2.0
+// CHANGES:
+// - Recalibrated all difficulty levels based on real-world effort
+// - Easy = можно сделать на автопилоте
+// - Medium = нужна дисциплина
+// - Hard = требует усилий и выхода из зоны комфорта
+// - Epic = экстремально сложно, редко кто делает регулярно
+
 // MARK: - Goal Template
 struct GoalTemplate: Identifiable {
     let id = UUID()
     let title: String
     let description: String
-    let category: String
+    let category: GoalCategory
     let frequency: Frequency
     let trackingType: TrackingType
     let targetValue: Double
     let icon: String
     let difficulty: Difficulty
+    
+    var statCategory: StatCategory {
+        StatCategory.fromGoalCategory(category)
+    }
 }
 
-// MARK: - Predefined Templates
+// MARK: - Goal Category
+enum GoalCategory: String, CaseIterable {
+    case muslim = "Мусульманин"
+    case fitness = "Спорт"
+    case business = "Бизнес"
+    case achiever = "Достигатор"
+    case family = "Семья"
+    case health = "Здоровье"
+    case learning = "Обучение"
+    
+    var icon: String {
+        switch self {
+        case .muslim: return "moon.stars.fill"
+        case .fitness: return "figure.run"
+        case .business: return "briefcase.fill"
+        case .achiever: return "star.fill"
+        case .family: return "heart.fill"
+        case .health: return "heart.text.square.fill"
+        case .learning: return "book.fill"
+        }
+    }
+}
+
+// MARK: - Predefined Templates with REALISTIC difficulty
 class GoalTemplateManager {
     static let shared = GoalTemplateManager()
     
@@ -22,538 +57,358 @@ class GoalTemplateManager {
         GoalTemplate(
             title: "Дополнительные молитвы (Суннах)",
             description: "Совершать дополнительные молитвы каждый день",
-            category: "muslim",
+            category: .muslim,
             frequency: .daily,
             trackingType: .binary,
             targetValue: 1,
             icon: "moon.stars.fill",
-            difficulty: .medium
+            difficulty: .hard  // РЕАЛИСТИЧНО: требует вставать для дополнительных молитв
         ),
         GoalTemplate(
             title: "Ночные молитвы (Тахаджуд)",
             description: "Совершать ночные молитвы",
-            category: "muslim",
+            category: .muslim,
             frequency: .daily,
             trackingType: .binary,
             targetValue: 1,
             icon: "moon.fill",
-            difficulty: .hard
+            difficulty: .epic  // РЕАЛИСТИЧНО: вставать ночью КАЖДУЮ ночь = экстрим
         ),
         GoalTemplate(
             title: "Чтение Корана",
             description: "Читать Коран ежедневно (страницы)",
-            category: "muslim",
+            category: .muslim,
             frequency: .daily,
             trackingType: .numeric,
             targetValue: 5,
             icon: "book.closed.fill",
-            difficulty: .medium
+            difficulty: .medium  // РЕАЛИСТИЧНО: 5 страниц = 10-15 минут, выполнимо
         ),
         GoalTemplate(
             title: "Зикр (100 раз)",
             description: "Произносить зикр 100 раз в день",
-            category: "muslim",
+            category: .muslim,
             frequency: .daily,
             trackingType: .numeric,
             targetValue: 100,
             icon: "hand.raised.fill",
-            difficulty: .easy
+            difficulty: .easy  // РЕАЛИСТИЧНО: 100 раз можно в транспорте
         ),
         GoalTemplate(
             title: "Дуа после каждой молитвы",
             description: "Читать дуа после обязательных молитв",
-            category: "muslim",
+            category: .muslim,
             frequency: .daily,
             trackingType: .numeric,
             targetValue: 5,
             icon: "hands.sparkles.fill",
-            difficulty: .medium
-        ),
-        GoalTemplate(
-            title: "Пост понедельник/четверг",
-            description: "Держать постные дни",
-            category: "muslim",
-            frequency: .weekly,
-            trackingType: .numeric,
-            targetValue: 2,
-            icon: "calendar.badge.clock",
-            difficulty: .hard
-        ),
-        GoalTemplate(
-            title: "Садака (пожертвование)",
-            description: "Делать садака ежедневно",
-            category: "muslim",
-            frequency: .daily,
-            trackingType: .binary,
-            targetValue: 1,
-            icon: "hand.thumbsup.fill",
-            difficulty: .medium
+            difficulty: .easy  // РЕАЛИСТИЧНО: добавить 30 секунд после молитвы легко
         ),
         
         // СПОРТ
         GoalTemplate(
             title: "Тренировка в зале",
             description: "Посещать спортзал регулярно",
-            category: "fitness",
+            category: .fitness,
             frequency: .weekly,
             trackingType: .numeric,
             targetValue: 3,
             icon: "dumbbell.fill",
-            difficulty: .hard
+            difficulty: .hard  // РЕАЛИСТИЧНО: 3 раза в неделю зал = нужна дисциплина
         ),
         GoalTemplate(
             title: "Бег",
             description: "Пробежать километры",
-            category: "fitness",
+            category: .fitness,
             frequency: .daily,
             trackingType: .numeric,
             targetValue: 5,
             icon: "figure.run",
-            difficulty: .hard
+            difficulty: .hard  // РЕАЛИСТИЧНО: 5км каждый день = сложно
         ),
         GoalTemplate(
             title: "Шаги в день",
             description: "Проходить 10000 шагов ежедневно",
-            category: "fitness",
+            category: .fitness,
             frequency: .daily,
             trackingType: .numeric,
             targetValue: 10000,
             icon: "figure.walk",
-            difficulty: .medium
+            difficulty: .medium  // РЕАЛИСТИЧНО: 10к шагов требует планирования
         ),
         GoalTemplate(
             title: "Йога/Растяжка",
             description: "Заниматься йогой или растяжкой",
-            category: "fitness",
+            category: .fitness,
             frequency: .daily,
             trackingType: .binary,
             targetValue: 1,
             icon: "figure.flexibility",
-            difficulty: .medium
+            difficulty: .medium  // РЕАЛИСТИЧНО: ежедневно 15-20 минут = средне
         ),
         GoalTemplate(
             title: "Отжимания",
             description: "Делать отжимания каждый день",
-            category: "fitness",
+            category: .fitness,
             frequency: .daily,
             trackingType: .numeric,
             targetValue: 50,
             icon: "figure.strengthtraining.traditional",
-            difficulty: .hard
-        ),
-        GoalTemplate(
-            title: "Планка",
-            description: "Держать планку (секунды)",
-            category: "fitness",
-            frequency: .daily,
-            trackingType: .numeric,
-            targetValue: 60,
-            icon: "figure.core.training",
-            difficulty: .medium
-        ),
-        GoalTemplate(
-            title: "Приседания",
-            description: "Делать приседания каждый день",
-            category: "fitness",
-            frequency: .daily,
-            trackingType: .numeric,
-            targetValue: 50,
-            icon: "figure.strengthtraining.functional",
-            difficulty: .medium
-        ),
-        GoalTemplate(
-            title: "Велосипед",
-            description: "Кататься на велосипеде (км)",
-            category: "fitness",
-            frequency: .weekly,
-            trackingType: .numeric,
-            targetValue: 20,
-            icon: "bicycle",
-            difficulty: .hard
+            difficulty: .hard  // РЕАЛИСТИЧНО: 50 отжиманий каждый день нелегко
         ),
         
         // БИЗНЕС
         GoalTemplate(
             title: "Рабочие часы",
             description: "Отработать продуктивные часы",
-            category: "business",
+            category: .business,
             frequency: .daily,
             trackingType: .numeric,
             targetValue: 8,
             icon: "clock.fill",
-            difficulty: .medium
+            difficulty: .medium  // РЕАЛИСТИЧНО: 8 часов ПРОДУКТИВНЫХ = средне
         ),
         GoalTemplate(
             title: "Встречи с клиентами",
             description: "Провести встречи с клиентами",
-            category: "business",
+            category: .business,
             frequency: .weekly,
             trackingType: .numeric,
             targetValue: 5,
             icon: "person.2.fill",
-            difficulty: .hard
+            difficulty: .hard  // РЕАЛИСТИЧНО: 5 встреч в неделю = много подготовки
         ),
         GoalTemplate(
             title: "Новые контакты",
             description: "Найти новых потенциальных клиентов",
-            category: "business",
+            category: .business,
             frequency: .weekly,
             trackingType: .numeric,
             targetValue: 10,
             icon: "phone.fill",
-            difficulty: .medium
+            difficulty: .hard  // РЕАЛИСТИЧНО: 10 новых лидов в неделю = сложно
         ),
         GoalTemplate(
             title: "Обучение/Курсы",
             description: "Изучать новые навыки для бизнеса",
-            category: "business",
+            category: .business,
             frequency: .weekly,
             trackingType: .numeric,
             targetValue: 2,
             icon: "graduationcap.fill",
-            difficulty: .medium
+            difficulty: .medium  // РЕАЛИСТИЧНО: 2 часа обучения в неделю реально
         ),
         GoalTemplate(
             title: "Проверка финансов",
             description: "Анализировать доходы и расходы",
-            category: "business",
+            category: .business,
             frequency: .weekly,
             trackingType: .binary,
             targetValue: 1,
             icon: "chart.line.uptrend.xyaxis",
-            difficulty: .easy
-        ),
-        GoalTemplate(
-            title: "Сетевое общение",
-            description: "Связаться с коллегами/партнерами",
-            category: "business",
-            frequency: .weekly,
-            trackingType: .numeric,
-            targetValue: 3,
-            icon: "network",
-            difficulty: .medium
-        ),
-        GoalTemplate(
-            title: "Email-ответы",
-            description: "Обработать все письма",
-            category: "business",
-            frequency: .daily,
-            trackingType: .binary,
-            targetValue: 1,
-            icon: "envelope.fill",
-            difficulty: .medium
+            difficulty: .easy  // РЕАЛИСТИЧНО: раз в неделю проверить = просто
         ),
         
         // ДОСТИГАТОР
         GoalTemplate(
             title: "Утренняя рутина",
             description: "Просыпаться в 6 утра",
-            category: "achiever",
+            category: .achiever,
             frequency: .daily,
             trackingType: .binary,
             targetValue: 1,
             icon: "sunrise.fill",
-            difficulty: .hard
+            difficulty: .hard  // РЕАЛИСТИЧНО: вставать в 6 КАЖДЫЙ день = сложно
         ),
         GoalTemplate(
             title: "Планирование дня",
             description: "Планировать день заранее",
-            category: "achiever",
+            category: .achiever,
             frequency: .daily,
             trackingType: .binary,
             targetValue: 1,
             icon: "list.bullet.clipboard.fill",
-            difficulty: .easy
+            difficulty: .easy  // РЕАЛИСТИЧНО: 5 минут на план = легко
         ),
         GoalTemplate(
             title: "Чтение книг",
             description: "Читать развивающие книги (минуты)",
-            category: "achiever",
+            category: .achiever,
             frequency: .daily,
             trackingType: .numeric,
             targetValue: 30,
             icon: "book.fill",
-            difficulty: .medium
+            difficulty: .medium  // РЕАЛИСТИЧНО: 30 минут каждый день = средне
         ),
         GoalTemplate(
             title: "Медитация",
             description: "Медитировать для ясности ума (минуты)",
-            category: "achiever",
+            category: .achiever,
             frequency: .daily,
             trackingType: .numeric,
             targetValue: 10,
             icon: "brain.head.profile",
-            difficulty: .medium
+            difficulty: .medium  // РЕАЛИСТИЧНО: 10 минут медитации требует привычки
         ),
         GoalTemplate(
             title: "Журналинг",
             description: "Вести дневник благодарности",
-            category: "achiever",
+            category: .achiever,
             frequency: .daily,
             trackingType: .binary,
             targetValue: 1,
             icon: "pencil.and.list.clipboard",
-            difficulty: .easy
-        ),
-        GoalTemplate(
-            title: "Вечерний обзор дня",
-            description: "Анализировать прошедший день",
-            category: "achiever",
-            frequency: .daily,
-            trackingType: .binary,
-            targetValue: 1,
-            icon: "moon.fill",
-            difficulty: .easy
-        ),
-        GoalTemplate(
-            title: "Благодарность",
-            description: "Записать 3 вещи за которые благодарен",
-            category: "achiever",
-            frequency: .daily,
-            trackingType: .binary,
-            targetValue: 1,
-            icon: "heart.text.square.fill",
-            difficulty: .easy
-        ),
-        GoalTemplate(
-            title: "Холодный душ",
-            description: "Принять холодный душ",
-            category: "achiever",
-            frequency: .daily,
-            trackingType: .binary,
-            targetValue: 1,
-            icon: "snowflake",
-            difficulty: .hard
+            difficulty: .easy  // РЕАЛИСТИЧНО: 5 минут написать = легко
         ),
         
         // СЕМЬЯ
         GoalTemplate(
             title: "Время с семьей",
             description: "Проводить качественное время с семьей (часы)",
-            category: "family",
+            category: .family,
             frequency: .daily,
             trackingType: .numeric,
             targetValue: 2,
             icon: "house.fill",
-            difficulty: .medium
+            difficulty: .medium  // РЕАЛИСТИЧНО: 2 часа качественного времени = средне
         ),
         GoalTemplate(
             title: "Свидание с супругой/супругом",
             description: "Проводить время вдвоем",
-            category: "family",
+            category: .family,
             frequency: .weekly,
             trackingType: .binary,
             targetValue: 1,
             icon: "heart.fill",
-            difficulty: .medium
+            difficulty: .medium  // РЕАЛИСТИЧНО: раз в неделю найти время = средне
         ),
         GoalTemplate(
             title: "Звонки родителям",
             description: "Звонить родителям",
-            category: "family",
+            category: .family,
             frequency: .weekly,
             trackingType: .numeric,
             targetValue: 2,
             icon: "phone.circle.fill",
-            difficulty: .easy
+            difficulty: .easy  // РЕАЛИСТИЧНО: 2 звонка в неделю = просто
         ),
         GoalTemplate(
             title: "Игры с детьми",
             description: "Играть с детьми",
-            category: "family",
+            category: .family,
             frequency: .daily,
             trackingType: .binary,
             targetValue: 1,
             icon: "figure.and.child.holdinghands",
-            difficulty: .easy
+            difficulty: .easy  // РЕАЛИСТИЧНО: поиграть 15-20 минут = легко
         ),
         GoalTemplate(
             title: "Семейный ужин",
             description: "Ужинать всей семьей вместе",
-            category: "family",
+            category: .family,
             frequency: .daily,
             trackingType: .binary,
             targetValue: 1,
             icon: "fork.knife",
-            difficulty: .medium
-        ),
-        GoalTemplate(
-            title: "Помощь по дому",
-            description: "Помогать с домашними делами",
-            category: "family",
-            frequency: .daily,
-            trackingType: .binary,
-            targetValue: 1,
-            icon: "house.and.flag.fill",
-            difficulty: .easy
-        ),
-        GoalTemplate(
-            title: "Комплименты близким",
-            description: "Сделать комплимент члену семьи",
-            category: "family",
-            frequency: .daily,
-            trackingType: .binary,
-            targetValue: 1,
-            icon: "bubble.left.and.bubble.right.fill",
-            difficulty: .easy
+            difficulty: .medium  // РЕАЛИСТИЧНО: синхронизировать всех = средне
         ),
         
         // ЗДОРОВЬЕ
         GoalTemplate(
             title: "Вода",
             description: "Выпивать стаканов воды",
-            category: "health",
+            category: .health,
             frequency: .daily,
             trackingType: .numeric,
             targetValue: 8,
             icon: "drop.fill",
-            difficulty: .easy
+            difficulty: .easy  // РЕАЛИСТИЧНО: пить воду = просто
         ),
         GoalTemplate(
             title: "Сон",
             description: "Спать 8 часов",
-            category: "health",
+            category: .health,
             frequency: .daily,
             trackingType: .numeric,
             targetValue: 8,
             icon: "bed.double.fill",
-            difficulty: .medium
+            difficulty: .medium  // РЕАЛИСТИЧНО: 8 часов регулярно = нужна дисциплина
         ),
         GoalTemplate(
             title: "Здоровое питание",
             description: "Есть здоровую пищу",
-            category: "health",
+            category: .health,
             frequency: .daily,
             trackingType: .binary,
             targetValue: 1,
             icon: "leaf.fill",
-            difficulty: .hard
+            difficulty: .hard  // РЕАЛИСТИЧНО: КАЖДЫЙ день здоровая еда = сложно
         ),
         GoalTemplate(
             title: "Витамины",
             description: "Принимать витамины",
-            category: "health",
+            category: .health,
             frequency: .daily,
             trackingType: .binary,
             targetValue: 1,
             icon: "pills.fill",
-            difficulty: .easy
+            difficulty: .easy  // РЕАЛИСТИЧНО: выпить таблетку = легко
         ),
         GoalTemplate(
             title: "Без сахара",
             description: "День без сладкого",
-            category: "health",
+            category: .health,
             frequency: .daily,
             trackingType: .binary,
             targetValue: 1,
             icon: "xmark.circle.fill",
-            difficulty: .hard
-        ),
-        GoalTemplate(
-            title: "Без кофеина",
-            description: "День без кофе/чая",
-            category: "health",
-            frequency: .daily,
-            trackingType: .binary,
-            targetValue: 1,
-            icon: "cup.and.saucer.fill",
-            difficulty: .hard
-        ),
-        GoalTemplate(
-            title: "Прогулка на свежем воздухе",
-            description: "Гулять на улице (минуты)",
-            category: "health",
-            frequency: .daily,
-            trackingType: .numeric,
-            targetValue: 30,
-            icon: "figure.walk.motion",
-            difficulty: .easy
-        ),
-        GoalTemplate(
-            title: "Упражнения для глаз",
-            description: "Делать гимнастику для глаз",
-            category: "health",
-            frequency: .daily,
-            trackingType: .binary,
-            targetValue: 1,
-            icon: "eye.fill",
-            difficulty: .easy
+            difficulty: .hard  // РЕАЛИСТИЧНО: отказ от сахара КАЖДЫЙ день = очень сложно
         ),
         
         // ОБУЧЕНИЕ
         GoalTemplate(
             title: "Изучение языка",
             description: "Изучать новый язык (минуты)",
-            category: "learning",
+            category: .learning,
             frequency: .daily,
             trackingType: .numeric,
             targetValue: 30,
             icon: "character.book.closed.fill",
-            difficulty: .medium
+            difficulty: .medium  // РЕАЛИСТИЧНО: 30 минут языка каждый день = средне
         ),
         GoalTemplate(
             title: "Онлайн курсы",
             description: "Проходить онлайн обучение (часы)",
-            category: "learning",
+            category: .learning,
             frequency: .weekly,
             trackingType: .numeric,
             targetValue: 3,
             icon: "play.rectangle.fill",
-            difficulty: .medium
+            difficulty: .medium  // РЕАЛИСТИЧНО: 3 часа курсов в неделю = средне
         ),
         GoalTemplate(
             title: "Документация",
             description: "Читать техническую документацию",
-            category: "learning",
+            category: .learning,
             frequency: .daily,
             trackingType: .binary,
             targetValue: 1,
             icon: "doc.text.fill",
-            difficulty: .medium
+            difficulty: .medium  // РЕАЛИСТИЧНО: каждый день читать доки = требует усилий
         ),
         GoalTemplate(
             title: "Практика кода",
             description: "Решать задачи на программирование",
-            category: "learning",
+            category: .learning,
             frequency: .daily,
             trackingType: .binary,
             targetValue: 1,
             icon: "chevron.left.forwardslash.chevron.right",
-            difficulty: .hard
-        ),
-        GoalTemplate(
-            title: "Просмотр обучающих видео",
-            description: "Смотреть образовательный контент (минуты)",
-            category: "learning",
-            frequency: .daily,
-            trackingType: .numeric,
-            targetValue: 20,
-            icon: "play.rectangle.fill",
-            difficulty: .easy
-        ),
-        GoalTemplate(
-            title: "Новое слово иностранного языка",
-            description: "Выучить новые слова",
-            category: "learning",
-            frequency: .daily,
-            trackingType: .numeric,
-            targetValue: 10,
-            icon: "abc",
-            difficulty: .medium
-        ),
-        GoalTemplate(
-            title: "Подкасты/Аудиокниги",
-            description: "Слушать образовательный контент (минуты)",
-            category: "learning",
-            frequency: .daily,
-            trackingType: .numeric,
-            targetValue: 20,
-            icon: "headphones.circle.fill",
-            difficulty: .easy
+            difficulty: .hard  // РЕАЛИСТИЧНО: кодить каждый день задачи = сложно
         ),
     ]
     
-    func templates(for category: String) -> [GoalTemplate] {
+    func templates(for category: GoalCategory) -> [GoalTemplate] {
         templates.filter { $0.category == category }
     }
 }

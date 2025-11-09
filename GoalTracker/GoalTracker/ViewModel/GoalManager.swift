@@ -1,21 +1,20 @@
 import Foundation
 import SwiftUI
+import UIKit
 import Combine
+
+// v2.5.3 FINAL - GoalManager БЕЗ вложенного struct Reward
 
 class GoalManager: ObservableObject {
     @Published var goals: [Goal] = []
     @Published var achievements: [Achievement] = []
-    @Published var rewards: [Reward] = []
+    @Published var rewards: [Reward] = []  // ← Использует глобальный Reward из Models.swift
     @Published var userProfile: UserProfile = UserProfile()
     @Published var showAchievementNotification = false
     @Published var latestAchievement: Achievement?
     @Published var showLevelUpNotification = false
     @Published var showCoinAnimation = false
     @Published var coinsEarned: Int = 0
-    @Published var showDamageFlash = false
-    @Published var showHealFlash = false
-    @Published var floatingNumber: Int?
-    @Published var showFloatingNumber = false
     
     private let goalsKey = "saved_goals"
     private let achievementsKey = "saved_achievements"
@@ -61,7 +60,7 @@ class GoalManager: ObservableObject {
         
         if userProfile.level > oldLevel {
             showLevelUpNotification = true
-            addCoins(userProfile.level * 50) // Бонус за левел
+            addCoins(userProfile.level * 50)
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 self.showLevelUpNotification = false
@@ -79,23 +78,19 @@ class GoalManager: ObservableObject {
         let daysDiff = calendar.dateComponents([.day], from: lastActivity, to: today).day ?? 0
         
         if daysDiff == 0 {
-            // Сегодня уже была активность
             return
         } else if daysDiff == 1 {
-            // Продолжаем streak
             userProfile.streak += 1
             if userProfile.streak > userProfile.longestStreak {
                 userProfile.longestStreak = userProfile.streak
             }
         } else if daysDiff > 1 {
-            // Streak прервался
             userProfile.streak = 0
         }
         
         userProfile.lastActivityDate = Date()
         saveProfile()
         
-        // Награды за streak
         if userProfile.streak == 7 {
             addCoins(50)
         } else if userProfile.streak == 30 {
@@ -127,11 +122,14 @@ class GoalManager: ObservableObject {
         if let index = goals.firstIndex(where: { $0.id == goalId }) {
             var updatedGoal = goals[index]
             let previousValue = updatedGoal.currentValue
+            
             updatedGoal.currentValue = max(0, min(value, updatedGoal.targetValue))
             updatedGoal.lastUpdated = Date()
             
-            // Добавить запись в историю и награды если цель завершена
-            if updatedGoal.isCompleted && previousValue < updatedGoal.targetValue {
+            let wasCompleted = previousValue >= updatedGoal.targetValue
+            let isNowCompleted = updatedGoal.currentValue >= updatedGoal.targetValue
+            
+            if isNowCompleted && !wasCompleted {
                 let coins = updatedGoal.coinReward
                 let xp = updatedGoal.coinReward * 2
                 let record = CompletionRecord(date: Date(), value: updatedGoal.targetValue, coinsEarned: coins)
@@ -141,9 +139,10 @@ class GoalManager: ObservableObject {
                 addXP(xp)
                 userProfile.totalGoalsCompleted += 1
                 updateStreak()
-                
-                // Прокачать характеристику персонажа
                 updateCharacterStats(for: updatedGoal)
+                
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
             }
             
             goals[index] = updatedGoal
@@ -159,22 +158,14 @@ class GoalManager: ObservableObject {
             updatedGoal.currentValue = min(updatedGoal.currentValue + value, updatedGoal.targetValue)
             updatedGoal.lastUpdated = Date()
             
-            // Для habit типа награждаем каждый раз
             if updatedGoal.trackingType == .habit {
                 let coins = updatedGoal.difficulty == .easy ? 5 : 10
                 addCoins(coins)
                 addXP(coins)
                 updateStreak()
-                
-                // ЛЕЧЕНИЕ HP за успех
-                let healing = updatedGoal.difficulty == .easy ? 3 : 5
-                applyHealing(healing)
-                
-                // Небольшая прокачка за привычку
                 updateCharacterStats(for: updatedGoal, isHabit: true)
             }
             
-            // Добавить запись в историю и награды если цель завершена
             if updatedGoal.isCompleted && previousValue < updatedGoal.targetValue {
                 let coins = updatedGoal.coinReward
                 let xp = updatedGoal.coinReward * 2
@@ -185,8 +176,6 @@ class GoalManager: ObservableObject {
                 addXP(xp)
                 userProfile.totalGoalsCompleted += 1
                 updateStreak()
-                
-                // Прокачать характеристику персонажа
                 updateCharacterStats(for: updatedGoal)
             }
             
@@ -196,17 +185,26 @@ class GoalManager: ObservableObject {
         }
     }
     
+    func decrementGoalProgress(goalId: UUID, by value: Double = 1) {
+        if let index = goals.firstIndex(where: { $0.id == goalId }) {
+            var updatedGoal = goals[index]
+            updatedGoal.currentValue = max(0, updatedGoal.currentValue - value)
+            updatedGoal.lastUpdated = Date()
+            
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.error)
+            
+            goals[index] = updatedGoal
+            saveGoals()
+        }
+    }
+    
     // MARK: - Character Stats Update
     private func updateCharacterStats(for goal: Goal, isHabit: Bool = false) {
-        // РЕАЛИСТИЧНАЯ СИСТЕМА: маленький прирост за одну цель
-        // Для реального изменения нужно постоянство!
-        
         let baseGain: Int
         if isHabit {
-            // За привычку совсем мало (нужно много повторений)
             baseGain = 1
         } else {
-            // За завершенную цель немного больше, но не много
             switch goal.difficulty {
             case .easy: baseGain = 1
             case .medium: baseGain = 2
@@ -215,27 +213,22 @@ class GoalManager: ObservableObject {
             }
         }
         
-        // Бонус за streak (постоянство важно!)
         let streakBonus: Int
         if userProfile.streak >= 30 {
-            streakBonus = 2 // +2 за месяц постоянства
+            streakBonus = 2
         } else if userProfile.streak >= 7 {
-            streakBonus = 1 // +1 за неделю постоянства
+            streakBonus = 1
         } else {
             streakBonus = 0
         }
         
         let totalGain = baseGain + streakBonus
-        
-        // Всегда прокачиваем дисциплину (любая цель = дисциплина)
         userProfile.characterStats.updateStat(for: .discipline, change: totalGain)
         
-        // Определяем специфичную характеристику по содержанию цели
         let title = goal.title.lowercased()
         let description = goal.description.lowercased()
         let combinedText = title + " " + description
         
-        // ФИЗИЧЕСКАЯ ФОРМА
         if combinedText.contains("спорт") || combinedText.contains("тренировка") ||
            combinedText.contains("бег") || combinedText.contains("отжим") ||
            combinedText.contains("зал") || combinedText.contains("йога") ||
@@ -244,7 +237,6 @@ class GoalManager: ObservableObject {
             userProfile.characterStats.updateStat(for: .physical, change: totalGain)
         }
         
-        // ИНТЕЛЛЕКТ
         if combinedText.contains("книга") || combinedText.contains("учить") ||
            combinedText.contains("курс") || combinedText.contains("язык") ||
            combinedText.contains("обучение") || combinedText.contains("читать") ||
@@ -253,7 +245,6 @@ class GoalManager: ObservableObject {
             userProfile.characterStats.updateStat(for: .mental, change: totalGain)
         }
         
-        // ЗДОРОВЬЕ
         if combinedText.contains("вода") || combinedText.contains("сон") ||
            combinedText.contains("здоров") || combinedText.contains("витамин") ||
            combinedText.contains("питание") || combinedText.contains("сахар") ||
@@ -262,7 +253,6 @@ class GoalManager: ObservableObject {
             userProfile.characterStats.updateStat(for: .health, change: totalGain)
         }
         
-        // КАРЬЕРА
         if combinedText.contains("работа") || combinedText.contains("бизнес") ||
            combinedText.contains("проект") || combinedText.contains("встреч") ||
            combinedText.contains("клиент") || combinedText.contains("финанс") ||
@@ -271,7 +261,6 @@ class GoalManager: ObservableObject {
             userProfile.characterStats.updateStat(for: .career, change: totalGain)
         }
         
-        // СОЦИАЛЬНАЯ ЖИЗНЬ
         if combinedText.contains("семья") || combinedText.contains("друзья") ||
            combinedText.contains("звонок") || combinedText.contains("супруг") ||
            combinedText.contains("дети") || combinedText.contains("родител") ||
@@ -283,75 +272,14 @@ class GoalManager: ObservableObject {
         saveProfile()
     }
     
-    func decrementGoalProgress(goalId: UUID, by value: Double = 1) {
-        if let index = goals.firstIndex(where: { $0.id == goalId }) {
-            var updatedGoal = goals[index]
-            updatedGoal.currentValue = max(0, updatedGoal.currentValue - value)
-            updatedGoal.lastUpdated = Date()
-            
-            // Штраф за минус
-            if updatedGoal.trackingType == .habit {
-                let penalty = updatedGoal.difficulty == .easy ? 3 : 5
-                userProfile.coins = max(0, userProfile.coins - penalty)
-                
-                // УРОН HP
-                let healthDamage = updatedGoal.difficulty == .easy ? 5 : 10
-                applyDamage(healthDamage)
-                
-                saveProfile()
-            }
-            
-            goals[index] = updatedGoal
-            saveGoals()
-        }
-    }
-    
-    // MARK: - Health Management
-    func applyDamage(_ amount: Int) {
-        userProfile.health = max(0, userProfile.health - amount)
-        
-        // Показать эффект урона
-        floatingNumber = -amount
-        showFloatingNumber = true
-        showDamageFlash = true
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            self.showFloatingNumber = false
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            self.showDamageFlash = false
-        }
-        
-        saveProfile()
-    }
-    
-    func applyHealing(_ amount: Int) {
-        userProfile.health = min(userProfile.maxHealth, userProfile.health + amount)
-        
-        // Показать эффект лечения
-        floatingNumber = amount
-        showFloatingNumber = true
-        showHealFlash = true
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            self.showFloatingNumber = false
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            self.showHealFlash = false
-        }
-        
-        saveProfile()
-    }
-    
     // MARK: - Reward Management
     func purchaseReward(_ reward: Reward) -> Bool {
         guard spendCoins(reward.cost) else { return false }
         
         if let index = rewards.firstIndex(where: { $0.id == reward.id }) {
             var updatedReward = rewards[index]
-            updatedReward.purchaseHistory.append(Date())
+            updatedReward.isPurchased = true
+            updatedReward.purchaseDate = Date()
             rewards[index] = updatedReward
         }
         
@@ -367,13 +295,6 @@ class GoalManager: ObservableObject {
     func deleteReward(_ reward: Reward) {
         rewards.removeAll { $0.id == reward.id }
         saveRewards()
-    }
-    
-    func updateReward(_ reward: Reward) {
-        if let index = rewards.firstIndex(where: { $0.id == reward.id }) {
-            rewards[index] = reward
-            saveRewards()
-        }
     }
     
     // MARK: - Repeating Goals
@@ -450,13 +371,12 @@ class GoalManager: ObservableObject {
            let decoded = try? JSONDecoder().decode([Reward].self, from: data) {
             rewards = decoded
         } else {
-            // Загрузить дефолтные награды при первом запуске
             rewards = RewardsManager.shared.defaultVirtualRewards + RewardsManager.shared.defaultRealRewards
             saveRewards()
         }
     }
     
-    private func saveProfile() {
+    func saveProfile() {
         if let encoded = try? JSONEncoder().encode(userProfile) {
             UserDefaults.standard.set(encoded, forKey: profileKey)
         }
@@ -473,7 +393,6 @@ class GoalManager: ObservableObject {
     private func checkForAchievements() {
         let completedGoals = goals.filter { $0.isCompleted }
         
-        // Первая победа
         if completedGoals.count == 1 && !hasAchievement(titled: "Первая Победа") {
             unlockAchievement(
                 Achievement(
@@ -487,7 +406,6 @@ class GoalManager: ObservableObject {
             )
         }
         
-        // 5 целей
         if completedGoals.count >= 5 && !hasAchievement(titled: "Разрушитель Целей") {
             unlockAchievement(
                 Achievement(
@@ -501,7 +419,6 @@ class GoalManager: ObservableObject {
             )
         }
         
-        // 10 целей
         if completedGoals.count >= 10 && !hasAchievement(titled: "Неудержимый") {
             unlockAchievement(
                 Achievement(
@@ -515,7 +432,6 @@ class GoalManager: ObservableObject {
             )
         }
         
-        // 25 целей - Легендарное
         if completedGoals.count >= 25 && !hasAchievement(titled: "Легенда") {
             unlockAchievement(
                 Achievement(
@@ -529,7 +445,6 @@ class GoalManager: ObservableObject {
             )
         }
         
-        // Серия 7 дней
         if userProfile.streak >= 7 && !hasAchievement(titled: "Недельная Серия") {
             unlockAchievement(
                 Achievement(
@@ -543,7 +458,6 @@ class GoalManager: ObservableObject {
             )
         }
         
-        // Серия 30 дней
         if userProfile.streak >= 30 && !hasAchievement(titled: "Месячный Марафон") {
             unlockAchievement(
                 Achievement(

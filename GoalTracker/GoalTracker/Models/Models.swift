@@ -193,7 +193,7 @@ enum AchievementRarity: String, Codable, CaseIterable {
     }
 }
 
-// MARK: - Reward Model
+// MARK: - Reward Model (v2.5 - FIXED)
 struct Reward: Identifiable, Codable {
     let id: UUID
     var title: String
@@ -201,8 +201,8 @@ struct Reward: Identifiable, Codable {
     var cost: Int
     var icon: String
     var category: RewardCategory
-    var isReusable: Bool // НОВОЕ: можно покупать много раз
-    var purchaseHistory: [Date] // НОВОЕ: история покупок
+    var isPurchased: Bool  // ← ВАЖНО: var
+    var purchaseDate: Date? // ← ВАЖНО: var
     
     init(
         id: UUID = UUID(),
@@ -211,8 +211,8 @@ struct Reward: Identifiable, Codable {
         cost: Int,
         icon: String,
         category: RewardCategory,
-        isReusable: Bool = false,
-        purchaseHistory: [Date] = []
+        isPurchased: Bool = false,
+        purchaseDate: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -220,20 +220,8 @@ struct Reward: Identifiable, Codable {
         self.cost = cost
         self.icon = icon
         self.category = category
-        self.isReusable = isReusable
-        self.purchaseHistory = purchaseHistory
-    }
-    
-    var isPurchased: Bool {
-        !purchaseHistory.isEmpty
-    }
-    
-    var purchaseCount: Int {
-        purchaseHistory.count
-    }
-    
-    var lastPurchaseDate: Date? {
-        purchaseHistory.last
+        self.isPurchased = isPurchased
+        self.purchaseDate = purchaseDate
     }
 }
 
@@ -318,6 +306,7 @@ struct UserProfile: Codable {
 }
 
 // MARK: - Character Stats
+// MARK: - Character Stats
 struct CharacterStats: Codable {
     var physical: Int = 0
     var mental: Int = 0
@@ -368,6 +357,33 @@ struct CharacterStats: Codable {
     }
 }
 
+// MARK: - BodyType (ДОЛЖЕН БЫТЬ ДО StatCategory!)
+enum BodyType: String, Codable {
+    case overweight = "Начинающий"
+    case average = "Обычный"
+    case fit = "Подтянутый"
+    case athletic = "Атлет"
+    
+    var description: String {
+        switch self {
+        case .overweight: return "Только начинаешь путь"
+        case .average: return "На правильном пути"
+        case .fit: return "В отличной форме"
+        case .athletic: return "Чемпион!"
+        }
+    }
+    
+    var emoji: String {
+        switch self {
+        case .overweight: return "🌱"
+        case .average: return "💪"
+        case .fit: return "🏋️"
+        case .athletic: return "🏆"
+        }
+    }
+}
+
+// MARK: - StatCategory
 enum StatCategory: String, CaseIterable, Codable {
     case physical = "Физическая форма"
     case mental = "Интеллект"
@@ -398,40 +414,15 @@ enum StatCategory: String, CaseIterable, Codable {
         }
     }
     
-//    static func fromGoalCategory(_ category: GoalCategory) -> StatCategory {
-//        switch category {
-//        case .fitness: return .physical
-//        case .learning: return .mental
-//        case .health: return .health
-//        case .business: return .career
-//        case .family: return .social
-//        case .achiever: return .discipline
-//        case .muslim: return .discipline
-        }
-//    }
-//}
-
-enum BodyType: String, Codable {
-    case overweight = "Начинающий"
-    case average = "Обычный"
-    case fit = "Подтянутый"
-    case athletic = "Атлет"
-    
-    var description: String {
-        switch self {
-        case .overweight: return "Только начинаешь путь"
-        case .average: return "На правильном пути"
-        case .fit: return "В отличной форме"
-        case .athletic: return "Чемпион!"
-        }
-    }
-    
-    var emoji: String {
-        switch self {
-        case .overweight: return "🌱"
-        case .average: return "💪"
-        case .fit: return "🏋️"
-        case .athletic: return "🏆"
+    static func fromGoalCategory(_ category: GoalCategory) -> StatCategory {
+        switch category {
+        case .fitness: return .physical
+        case .learning: return .mental
+        case .health: return .health
+        case .business: return .career
+        case .family: return .social
+        case .achiever: return .discipline
+        case .muslim: return .discipline
         }
     }
 }

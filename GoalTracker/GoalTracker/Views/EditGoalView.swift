@@ -30,157 +30,153 @@ struct EditGoalView: View {
     
     var body: some View {
         NavigationView {
-            ZStack(alignment: .bottom) {
-                Form {
-                    Section("Детали цели") {
-                        HStack {
-                            Button {
-                                showingIconPicker = true
-                            } label: {
-                                Image(systemName: selectedIcon)
-                                    .font(.title)
-                                    .foregroundColor(.blue)
-                                    .frame(width: 50, height: 50)
-                                    .background(Color.blue.opacity(0.1))
-                                    .cornerRadius(10)
-                            }
+            Form {
+                Section("Детали цели") {
+                    HStack {
+                        Button {
+                            showingIconPicker = true
+                        } label: {
+                            Image(systemName: selectedIcon)
+                                .font(.title)
+                                .foregroundColor(.blue)
+                                .frame(width: 50, height: 50)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(10)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            TextField("Название цели", text: $title)
+                                .font(.body)
                             
-                            VStack(alignment: .leading, spacing: 4) {
-                                TextField("Название цели", text: $title)
-                                    .font(.body)
-                                
-                                Text("Нажмите на иконку для выбора")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        TextField("Описание (необязательно)", text: $description, axis: .vertical)
-                            .lineLimit(3...6)
-                            .font(.body)
-                    }
-                    
-                    Section("Сложность") {
-                        Picker("Уровень сложности", selection: $selectedDifficulty) {
-                            ForEach(Difficulty.allCases, id: \.self) { difficulty in
-                                HStack {
-                                    Text(difficulty.emoji)
-                                    Text(difficulty.rawValue)
-                                }
-                                .tag(difficulty)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        
-                        HStack {
-                            Text("Награда:")
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            HStack(spacing: 4) {
-                                Image(systemName: "dollarsign.circle.fill")
-                                    .foregroundColor(.yellow)
-                                Text("\(selectedDifficulty.coinMultiplier)")
-                                    .fontWeight(.bold)
-                            }
-                        }
-                        .font(.subheadline)
-                    }
-                    
-                    Section("Частота") {
-                        Picker("Как часто?", selection: $selectedFrequency) {
-                            ForEach(Frequency.allCases, id: \.self) { frequency in
-                                Text(frequency.rawValue).tag(frequency)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        
-                        Toggle("Повторять автоматически", isOn: $isRepeating)
-                            .toggleStyle(SwitchToggleStyle(tint: .blue))
-                        
-                        if isRepeating {
-                            Text("Цель будет сбрасываться после завершения каждого периода")
+                            Text("Нажмите на иконку для выбора")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                     }
                     
-                    Section("Тип отслеживания") {
-                        Picker("Тип", selection: $selectedTrackingType) {
-                            ForEach(TrackingType.allCases, id: \.self) { type in
-                                HStack {
-                                    Image(systemName: type.icon)
-                                    Text(type.rawValue)
-                                }
-                                .tag(type)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        
-                        if selectedTrackingType == .binary {
-                            Text("Да/Нет отслеживание - Завершено или не завершено")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        } else {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Целевое значение")
-                                    .font(.subheadline)
-                                
-                                TextField("Введите число", text: $targetValue)
-                                    .keyboardType(.decimalPad)
-                                    .textFieldStyle(.roundedBorder)
-                                    .onChange(of: targetValue) { oldValue, newValue in
-                                        let filtered = newValue.filter { $0.isNumber || $0 == "." }
-                                        if filtered != newValue {
-                                            targetValue = filtered
-                                        }
-                                    }
-                                
-                                Text("Только числа. Например: 8, 10, 100")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-                    
-                    Section {
-                        Color.clear
-                            .frame(height: 80)
-                    }
-                    .listRowBackground(Color.clear)
+                    TextField("Описание (необязательно)", text: $description, axis: .vertical)
+                        .lineLimit(3...6)
+                        .font(.body)
                 }
                 
-                // Фиксированная кнопка внизу
-                VStack {
-                    Button {
-                        saveGoal()
-                    } label: {
-                        HStack {
-                            Spacer()
-                            Text("Сохранить изменения")
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                            Spacer()
+                Section("Сложность") {
+                    Picker("Уровень сложности", selection: $selectedDifficulty) {
+                        ForEach(Difficulty.allCases, id: \.self) { difficulty in
+                            HStack {
+                                Text(difficulty.emoji)
+                                Text(difficulty.rawValue)
+                            }
+                            .tag(difficulty)
                         }
-                        .padding()
-                        .background(isFormValid ? Color.blue : Color.gray)
-                        .cornerRadius(12)
                     }
-                    .disabled(!isFormValid)
-                    .padding()
-                    .background(
-                        Rectangle()
-                            .fill(Color(UIColor.systemBackground))
-                            .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: -5)
-                    )
+                    .pickerStyle(.menu)
+                    
+                    HStack {
+                        Text("Награда:")
+                            .font(.subheadline)
+                        Spacer()
+                        HStack(spacing: 4) {
+                            Image(systemName: "dollarsign.circle.fill")
+                                .foregroundColor(.yellow)
+                            Text("\(selectedDifficulty.coinMultiplier)")
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundColor(.yellow)
+                        }
+                    }
+                }
+                
+                Section("Частота") {
+                    Picker("Как часто?", selection: $selectedFrequency) {
+                        ForEach(Frequency.allCases, id: \.self) { frequency in
+                            Text(frequency.rawValue).tag(frequency)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    
+                    Toggle("Повторять автоматически", isOn: $isRepeating)
+                        .toggleStyle(SwitchToggleStyle(tint: .blue))
+                    
+                    if isRepeating {
+                        Text("Цель будет сбрасываться после завершения каждого периода")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Section("Тип отслеживания") {
+                    Picker("Тип", selection: $selectedTrackingType) {
+                        ForEach(TrackingType.allCases, id: \.self) { type in
+                            HStack {
+                                Image(systemName: type.icon)
+                                Text(type.rawValue)
+                            }
+                            .tag(type)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    
+                    if selectedTrackingType == .binary {
+                        Text("Да/Нет отслеживание - Завершено или не завершено")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Целевое значение")
+                                .font(.subheadline)
+                            
+                            TextField("Введите число", text: $targetValue)
+                                .keyboardType(.decimalPad)
+                                .textFieldStyle(.roundedBorder)
+                                .onChange(of: targetValue) { oldValue, newValue in
+                                    let filtered = newValue.filter { $0.isNumber || $0 == "." }
+                                    if filtered != newValue {
+                                        targetValue = filtered
+                                    }
+                                }
+                            
+                            Text("Только числа. Например: 8, 10, 100")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
+                Section("История") {
+                    HStack {
+                        Text("Текущий прогресс:")
+                        Spacer()
+                        Text("\(Int(goal.currentValue))/\(Int(goal.targetValue))")
+                            .fontWeight(.bold)
+                    }
+                    
+                    HStack {
+                        Text("Всего завершений:")
+                        Spacer()
+                        Text("\(goal.completionHistory.count)")
+                            .fontWeight(.bold)
+                            .foregroundColor(.green)
+                    }
+                    
+                    if !goal.completionHistory.isEmpty {
+                        Text("История сохранится при изменении цели")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             .navigationTitle("Редактировать цель")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Отмена") {
-                        dismiss()
+                    Button("Отмена") { dismiss() }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Сохранить") {
+                        saveGoal()
                     }
+                    .disabled(!isFormValid)
                 }
             }
             .sheet(isPresented: $showingIconPicker) {
@@ -190,11 +186,9 @@ struct EditGoalView: View {
     }
     
     private var isFormValid: Bool {
-        if title.isEmpty {
-            return false
-        }
+        if title.isEmpty { return false }
         
-        if selectedTrackingType == .numeric || selectedTrackingType == .habit {
+        if selectedTrackingType == .numeric {
             let filtered = targetValue.filter { $0.isNumber || $0 == "." }
             guard let value = Double(filtered), value > 0 else {
                 return false
@@ -205,39 +199,28 @@ struct EditGoalView: View {
     }
     
     private func saveGoal() {
-        let target: Double
-        
-        if selectedTrackingType == .binary {
-            target = 1.0
-        } else {
-            let filtered = targetValue.filter { $0.isNumber || $0 == "." }
-            target = Double(filtered) ?? 0
-        }
-        
-        guard target > 0 else { return }
-        
         var updatedGoal = goal
+        
         updatedGoal.title = title
         updatedGoal.description = description
         updatedGoal.frequency = selectedFrequency
         updatedGoal.trackingType = selectedTrackingType
         updatedGoal.difficulty = selectedDifficulty
-        updatedGoal.targetValue = target
         updatedGoal.icon = selectedIcon
         updatedGoal.isRepeating = isRepeating
         
+        if selectedTrackingType == .binary {
+            updatedGoal.targetValue = 1.0
+        } else {
+            let filtered = targetValue.filter { $0.isNumber || $0 == "." }
+            updatedGoal.targetValue = Double(filtered) ?? goal.targetValue
+        }
+        
+        updatedGoal.completionHistory = goal.completionHistory
+        updatedGoal.currentValue = goal.currentValue
+        
         goalManager.updateGoal(updatedGoal)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
         dismiss()
     }
-}
-
-#Preview {
-    EditGoalView(goal: Goal(
-        title: "Тестовая цель",
-        frequency: .daily,
-        trackingType: .numeric,
-        difficulty: .medium,
-        targetValue: 10
-    ))
-    .environmentObject(GoalManager())
 }

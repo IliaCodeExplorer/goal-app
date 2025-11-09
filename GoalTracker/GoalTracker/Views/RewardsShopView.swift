@@ -1,5 +1,11 @@
 import SwiftUI
 
+// v2.5 - RewardsShopView (упрощенная версия без isReusable)
+// ИЗМЕНЕНИЯ:
+// - Удалена поддержка многоразовых наград (isReusable)
+// - Удалена история покупок (purchaseHistory)
+// - Награда покупается 1 раз (isPurchased)
+
 struct RewardsShopView: View {
     @EnvironmentObject var goalManager: GoalManager
     @State private var selectedCategory: RewardCategory?
@@ -201,7 +207,6 @@ struct FilterPill: View {
 
 struct RewardCardView: View {
     @EnvironmentObject var goalManager: GoalManager
-    @State private var showingConfirmation = false
     @State private var showingDetail = false
     let reward: Reward
     
@@ -209,65 +214,47 @@ struct RewardCardView: View {
         goalManager.userProfile.coins >= reward.cost
     }
     
-    var canPurchase: Bool {
-        canAfford && (reward.isReusable || !reward.isPurchased)
-    }
-    
     var body: some View {
         Button {
             showingDetail = true
         } label: {
             VStack(spacing: 12) {
-                // Icon (фиксированный размер)
+                // Icon
                 ZStack {
                     Circle()
                         .fill(
                             reward.isPurchased ?
                             LinearGradient(colors: [.green.opacity(0.3), .green.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing) :
-                            LinearGradient(colors: [categoryColor.opacity(0.3), categoryColor.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                LinearGradient(colors: [categoryColor.opacity(0.3), categoryColor.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing)
                         )
-                        .frame(width: 70, height: 70) // Фиксированный размер!
+                        .frame(width: 70, height: 70)
                     
                     Image(systemName: reward.icon)
-                        .font(.system(size: 30)) // Фиксированный размер иконки
+                        .font(.system(size: 30))
                         .foregroundColor(reward.isPurchased ? .green : categoryColor)
                     
                     if reward.isPurchased {
-                        // Показываем количество покупок для многоразовых
-                        if reward.isReusable && reward.purchaseCount > 1 {
-                            Circle()
-                                .fill(Color.blue)
-                                .frame(width: 24, height: 24)
-                                .overlay(
-                                    Text("\(reward.purchaseCount)")
-                                        .font(.caption2)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
-                                )
-                                .offset(x: 28, y: -28)
-                        } else {
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: 24, height: 24)
-                                .overlay(
-                                    Image(systemName: "checkmark")
-                                        .font(.caption)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
-                                )
-                                .offset(x: 28, y: -28)
-                        }
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 24, height: 24)
+                            .overlay(
+                                Image(systemName: "checkmark")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                            )
+                            .offset(x: 28, y: -28)
                     }
                 }
                 
-                // Title (фиксированная высота)
+                // Title
                 Text(reward.title)
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .foregroundColor(.primary)
-                    .frame(height: 36) // Фиксированная высота для 2 строк
+                    .frame(height: 36)
                 
                 // Cost
                 HStack(spacing: 4) {
@@ -281,15 +268,7 @@ struct RewardCardView: View {
                 }
                 
                 // Status badge
-                if reward.isReusable {
-                    Text("♻️ Многоразовая")
-                        .font(.caption2)
-                        .foregroundColor(.blue)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.blue.opacity(0.2))
-                        .cornerRadius(6)
-                } else if reward.isPurchased {
+                if reward.isPurchased {
                     Text("✓ Куплено")
                         .font(.caption2)
                         .foregroundColor(.green)
@@ -300,12 +279,12 @@ struct RewardCardView: View {
                 } else {
                     Text(" ")
                         .font(.caption2)
-                        .frame(height: 18) // Пустое место чтобы высота была одинаковой
+                        .frame(height: 18)
                 }
             }
             .padding()
             .frame(maxWidth: .infinity)
-            .frame(height: 200) // ФИКСИРОВАННАЯ ВЫСОТА КАРТОЧКИ!
+            .frame(height: 200)
             .background(Color(.systemBackground))
             .cornerRadius(16)
             .shadow(color: reward.isPurchased ? Color.green.opacity(0.2) : Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
@@ -327,9 +306,8 @@ struct RewardCardView: View {
         case .entertainment: return .blue
         case .fitness: return .green
         case .shopping: return .pink
-        case .selfCare: return .cyan
-        case .social: return .indigo
         case .bigGoal: return .yellow
+        @unknown default: return .gray
         }
     }
 }
@@ -345,7 +323,7 @@ struct RewardDetailView: View {
     }
     
     var canPurchase: Bool {
-        canAfford && (reward.isReusable || !reward.isPurchased)
+        canAfford && !reward.isPurchased
     }
     
     var body: some View {
@@ -416,44 +394,6 @@ struct RewardDetailView: View {
                         .padding()
                         .background(Color.gray.opacity(0.1))
                         .cornerRadius(12)
-                        
-                        // Тип награды
-                        if reward.isReusable {
-                            HStack {
-                                Image(systemName: "repeat.circle.fill")
-                                    .foregroundColor(.blue)
-                                Text("Можно покупать много раз")
-                                    .font(.subheadline)
-                            }
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.blue.opacity(0.1))
-                            .cornerRadius(12)
-                        }
-                    }
-                    
-                    // История покупок
-                    if !reward.purchaseHistory.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("История покупок (\(reward.purchaseCount))")
-                                .font(.headline)
-                            
-                            ForEach(reward.purchaseHistory.reversed().prefix(5), id: \.self) { date in
-                                HStack {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                    
-                                    Text(date.formatted(date: .abbreviated, time: .shortened))
-                                        .font(.subheadline)
-                                    
-                                    Spacer()
-                                }
-                                .padding()
-                                .background(Color.green.opacity(0.05))
-                                .cornerRadius(8)
-                            }
-                        }
-                        .padding(.horizontal)
                     }
                     
                     // Кнопка покупки
@@ -461,7 +401,7 @@ struct RewardDetailView: View {
                         Button {
                             showingConfirmation = true
                         } label: {
-                            Text(reward.isPurchased ? "Купить еще раз" : "Купить награду")
+                            Text("Купить награду")
                                 .font(.headline)
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
@@ -485,7 +425,7 @@ struct RewardDetailView: View {
                         .background(Color.red.opacity(0.1))
                         .cornerRadius(12)
                         .padding(.horizontal)
-                    } else if !reward.isReusable && reward.isPurchased {
+                    } else if reward.isPurchased {
                         VStack(spacing: 12) {
                             Image(systemName: "checkmark.seal.fill")
                                 .font(.system(size: 50))
@@ -495,7 +435,7 @@ struct RewardDetailView: View {
                                 .font(.headline)
                                 .foregroundColor(.green)
                             
-                            if let date = reward.lastPurchaseDate {
+                            if let date = reward.purchaseDate {
                                 Text("Куплено: \(date.formatted(date: .long, time: .shortened))")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
@@ -522,15 +462,11 @@ struct RewardDetailView: View {
                 Button("Отмена", role: .cancel) { }
                 Button("Купить за \(reward.cost) монет") {
                     if goalManager.purchaseReward(reward) {
-                        if !reward.isReusable {
-                            dismiss()
-                        }
+                        dismiss()
                     }
                 }
             } message: {
-                Text(reward.isReusable ?
-                     "Потратить \(reward.cost) монет на \"\(reward.title)\"?" :
-                     "Вы уверены что хотите купить \"\(reward.title)\"?")
+                Text("Вы уверены что хотите купить \"\(reward.title)\"?")
             }
         }
     }
@@ -542,12 +478,10 @@ struct RewardDetailView: View {
         case .entertainment: return .blue
         case .fitness: return .green
         case .shopping: return .pink
-        case .selfCare: return .cyan
-        case .social: return .indigo
         case .bigGoal: return .yellow
+        @unknown default: return .gray
         }
-    }
-}
+    }}
 
 #Preview {
     RewardsShopView()
