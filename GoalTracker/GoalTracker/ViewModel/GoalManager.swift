@@ -16,6 +16,35 @@ class GoalManager: ObservableObject {
     @Published var showCoinAnimation = false
     @Published var coinsEarned: Int = 0
     
+    // MARK: - Manual Recovery
+    func manualRecovery() {
+        print("🔍 Попытка восстановления...")
+        print("📊 Текущее состояние:")
+        print("   Goals: \(goals.count)")
+        print("   Coins: \(userProfile.coins)")
+        print("   Streak: \(userProfile.streak)")
+        print("   Total Completed: \(userProfile.totalGoalsCompleted)")
+        
+        // Проверяем все возможные ключи
+        let possibleKeys = ["saved_goals", "goals_backup", "goals_backup_auto"]
+        
+        for key in possibleKeys {
+            if let data = UserDefaults.standard.data(forKey: key),
+               let recovered = try? JSONDecoder().decode([Goal].self, from: data) {
+                print("✅ Найдено \(recovered.count) целей в '\(key)'")
+                
+                if recovered.count > goals.count {
+                    goals = recovered
+                    saveGoals()
+                    print("🎉 Восстановлено!")
+                    return
+                }
+            }
+        }
+        
+        print("❌ Не удалось найти бэкап")
+    }
+    
     private let goalsKey = "saved_goals"
     private let achievementsKey = "saved_achievements"
     private let rewardsKey = "saved_rewards"
@@ -118,31 +147,57 @@ class GoalManager: ObservableObject {
         saveGoals()
     }
     
+   
+    
     func updateGoalProgress(goalId: UUID, value: Double) {
         if let index = goals.firstIndex(where: { $0.id == goalId }) {
             var updatedGoal = goals[index]
             let previousValue = updatedGoal.currentValue
             
-            updatedGoal.currentValue = max(0, min(value, updatedGoal.targetValue))
+            updatedGoal.currentValue = value
             updatedGoal.lastUpdated = Date()
             
-            let wasCompleted = previousValue >= updatedGoal.targetValue
-            let isNowCompleted = updatedGoal.currentValue >= updatedGoal.targetValue
+            // НОВОЕ: Добавляем запись в историю для ВСЕХ типов целей
+            if value >= 0 {
+                let calendar = Calendar.current
+                let today = calendar.startOfDay(for: Date())
+                
+                // Удаляем старую запись за сегодня если есть
+                updatedGoal.completionHistory.removeAll {
+                    calendar.isDate($0.date, inSameDayAs: today)
+                }
+                
+                // Добавляем новую
+                let record = CompletionRecord(
+                    date: Date(),
+                    value: value,
+                    coinsEarned: 0
+                )
+                updatedGoal.completionHistory.append(record)
+            }
             
-            if isNowCompleted && !wasCompleted {
+            // Награды только если цель завершена впервые
+            if updatedGoal.isCompleted && previousValue < updatedGoal.targetValue && value >= 0 {
                 let coins = updatedGoal.coinReward
                 let xp = updatedGoal.coinReward * 2
-                let record = CompletionRecord(date: Date(), value: updatedGoal.targetValue, coinsEarned: coins)
-                updatedGoal.completionHistory.append(record)
+                
+                // Обновляем последнюю запись с наградой
+                if var lastRecord = updatedGoal.completionHistory.last {
+                    updatedGoal.completionHistory.removeLast()
+                    lastRecord = CompletionRecord(
+                        id: lastRecord.id,
+                        date: lastRecord.date,
+                        value: lastRecord.value,
+                        coinsEarned: coins
+                    )
+                    updatedGoal.completionHistory.append(lastRecord)
+                }
                 
                 addCoins(coins)
                 addXP(xp)
                 userProfile.totalGoalsCompleted += 1
                 updateStreak()
                 updateCharacterStats(for: updatedGoal)
-                
-                let generator = UINotificationFeedbackGenerator()
-                generator.notificationOccurred(.success)
             }
             
             goals[index] = updatedGoal
@@ -153,49 +208,15 @@ class GoalManager: ObservableObject {
     
     func incrementGoalProgress(goalId: UUID, by value: Double = 1) {
         if let index = goals.firstIndex(where: { $0.id == goalId }) {
-            var updatedGoal = goals[index]
-            let previousValue = updatedGoal.currentValue
-            updatedGoal.currentValue = min(updatedGoal.currentValue + value, updatedGoal.targetValue)
-            updatedGoal.lastUpdated = Date()
-            
-            if updatedGoal.trackingType == .habit {
-                let coins = updatedGoal.difficulty == .easy ? 5 : 10
-                addCoins(coins)
-                addXP(coins)
-                updateStreak()
-                updateCharacterStats(for: updatedGoal, isHabit: true)
-            }
-            
-            if updatedGoal.isCompleted && previousValue < updatedGoal.targetValue {
-                let coins = updatedGoal.coinReward
-                let xp = updatedGoal.coinReward * 2
-                let record = CompletionRecord(date: Date(), value: updatedGoal.targetValue, coinsEarned: coins)
-                updatedGoal.completionHistory.append(record)
-                
-                addCoins(coins)
-                addXP(xp)
-                userProfile.totalGoalsCompleted += 1
-                updateStreak()
-                updateCharacterStats(for: updatedGoal)
-            }
-            
-            goals[index] = updatedGoal
-            saveGoals()
-            checkForAchievements()
+            let newValue = goals[index].currentValue + value
+            updateGoalProgress(goalId: goalId, value: newValue)
         }
     }
-    
+
     func decrementGoalProgress(goalId: UUID, by value: Double = 1) {
         if let index = goals.firstIndex(where: { $0.id == goalId }) {
-            var updatedGoal = goals[index]
-            updatedGoal.currentValue = max(0, updatedGoal.currentValue - value)
-            updatedGoal.lastUpdated = Date()
-            
-            let generator = UINotificationFeedbackGenerator()
-            generator.notificationOccurred(.error)
-            
-            goals[index] = updatedGoal
-            saveGoals()
+            let newValue = max(0, goals[index].currentValue - value)
+            updateGoalProgress(goalId: goalId, value: newValue)
         }
     }
     
@@ -298,39 +319,80 @@ class GoalManager: ObservableObject {
     }
     
     // MARK: - Repeating Goals
+    // MARK: - Repeating Goals Auto-Reset
+    // MARK: - Repeating Goals Auto-Reset
     func checkAndResetRepeatingGoals() {
-        let calendar = Calendar.current
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone.current
         let now = Date()
+        
+        var hasChanges = false
+        
+        print("🔄 Checking repeating goals...")
+        print("📅 Current date: \(now)")
+        print("🌍 TimeZone: \(TimeZone.current.identifier)")
         
         for i in 0..<goals.count {
             var goal = goals[i]
             
-            guard goal.isRepeating && goal.isCompleted else { continue }
+            // ИЗМЕНЕНИЕ: Сбрасываем ВСЕ repeating цели, не только completed
+            guard goal.isRepeating else { continue }
             
             let shouldReset: Bool
+            let lastUpdate = goal.lastUpdated
+            
+            print("   Checking: \(goal.title)")
+            print("   Last updated: \(lastUpdate)")
+            print("   Current value: \(goal.currentValue)")
+            print("   Frequency: \(goal.frequency)")
             
             switch goal.frequency {
             case .daily:
-                shouldReset = !calendar.isDateInToday(goal.lastUpdated)
+                shouldReset = !calendar.isDate(lastUpdate, inSameDayAs: now)
+                
             case .weekly:
-                let weeksDiff = calendar.dateComponents([.weekOfYear], from: goal.lastUpdated, to: now).weekOfYear ?? 0
-                shouldReset = weeksDiff >= 1
+                let lastWeek = calendar.component(.weekOfYear, from: lastUpdate)
+                let currentWeek = calendar.component(.weekOfYear, from: now)
+                let lastYear = calendar.component(.year, from: lastUpdate)
+                let currentYear = calendar.component(.year, from: now)
+                shouldReset = (currentWeek != lastWeek) || (currentYear != lastYear)
+                
             case .monthly:
-                let monthsDiff = calendar.dateComponents([.month], from: goal.lastUpdated, to: now).month ?? 0
-                shouldReset = monthsDiff >= 1
+                let lastMonth = calendar.component(.month, from: lastUpdate)
+                let currentMonth = calendar.component(.month, from: now)
+                let lastYear = calendar.component(.year, from: lastUpdate)
+                let currentYear = calendar.component(.year, from: now)
+                shouldReset = (currentMonth != lastMonth) || (currentYear != lastYear)
+                
             case .yearly:
-                let yearsDiff = calendar.dateComponents([.year], from: goal.lastUpdated, to: now).year ?? 0
-                shouldReset = yearsDiff >= 1
+                let lastYear = calendar.component(.year, from: lastUpdate)
+                let currentYear = calendar.component(.year, from: now)
+                shouldReset = currentYear != lastYear
             }
             
             if shouldReset {
+                print("   ✅ Resetting goal: \(goal.title)")
+                print("   Old value: \(goal.currentValue) → New value: 0")
+                
+                // КРИТИЧНО: Сбрасываем currentValue в 0
                 goal.currentValue = 0
                 goal.lastUpdated = now
                 goals[i] = goal
+                hasChanges = true
+            } else {
+                print("   ⏭️  No reset needed")
             }
         }
         
-        saveGoals()
+        if hasChanges {
+            saveGoals()
+            print("💾 Saved reset goals")
+            
+            // НОВОЕ: Принудительное обновление UI
+            objectWillChange.send()
+        } else {
+            print("✓ No goals needed reset")
+        }
     }
     
     // MARK: - Persistence
@@ -393,6 +455,7 @@ class GoalManager: ObservableObject {
     private func checkForAchievements() {
         let completedGoals = goals.filter { $0.isCompleted }
         
+        // Первая победа
         if completedGoals.count == 1 && !hasAchievement(titled: "Первая Победа") {
             unlockAchievement(
                 Achievement(
@@ -400,12 +463,13 @@ class GoalManager: ObservableObject {
                     description: "Завершена первая цель!",
                     icon: "star.fill",
                     reward: "🌟 Начало пути",
-                    rarity: .common,
+                    rarity: AchievementRarity.common,
                     coinsEarned: 100
                 )
             )
         }
         
+        // 5 целей
         if completedGoals.count >= 5 && !hasAchievement(titled: "Разрушитель Целей") {
             unlockAchievement(
                 Achievement(
@@ -413,12 +477,13 @@ class GoalManager: ObservableObject {
                     description: "Завершено 5 целей!",
                     icon: "flame.fill",
                     reward: "🔥 Огненная серия",
-                    rarity: .rare,
+                    rarity: AchievementRarity.rare,
                     coinsEarned: 250
                 )
             )
         }
         
+        // 10 целей
         if completedGoals.count >= 10 && !hasAchievement(titled: "Неудержимый") {
             unlockAchievement(
                 Achievement(
@@ -426,12 +491,13 @@ class GoalManager: ObservableObject {
                     description: "Завершено 10 целей!",
                     icon: "crown.fill",
                     reward: "👑 Корона победителя",
-                    rarity: .epic,
+                    rarity: AchievementRarity.epic,
                     coinsEarned: 500
                 )
             )
         }
         
+        // 25 целей - Легендарное
         if completedGoals.count >= 25 && !hasAchievement(titled: "Легенда") {
             unlockAchievement(
                 Achievement(
@@ -439,12 +505,13 @@ class GoalManager: ObservableObject {
                     description: "Завершено 25 целей!",
                     icon: "sparkles",
                     reward: "✨ Легендарный статус",
-                    rarity: .legendary,
+                    rarity: AchievementRarity.legendary,
                     coinsEarned: 1000
                 )
             )
         }
         
+        // Серия 7 дней
         if userProfile.streak >= 7 && !hasAchievement(titled: "Недельная Серия") {
             unlockAchievement(
                 Achievement(
@@ -452,12 +519,13 @@ class GoalManager: ObservableObject {
                     description: "7 дней подряд выполнения целей!",
                     icon: "calendar.badge.clock",
                     reward: "📅 Мастер постоянства",
-                    rarity: .rare,
+                    rarity: AchievementRarity.rare,
                     coinsEarned: 250
                 )
             )
         }
         
+        // Серия 30 дней
         if userProfile.streak >= 30 && !hasAchievement(titled: "Месячный Марафон") {
             unlockAchievement(
                 Achievement(
@@ -465,17 +533,17 @@ class GoalManager: ObservableObject {
                     description: "30 дней подряд выполнения целей!",
                     icon: "flame.circle.fill",
                     reward: "🏆 Титан дисциплины",
-                    rarity: .epic,
+                    rarity: AchievementRarity.epic,
                     coinsEarned: 500
                 )
             )
         }
     }
-    
+
     private func hasAchievement(titled title: String) -> Bool {
         achievements.contains { $0.title == title }
     }
-    
+
     private func unlockAchievement(_ achievement: Achievement) {
         achievements.append(achievement)
         latestAchievement = achievement
@@ -537,5 +605,29 @@ class GoalManager: ObservableObject {
         }
         
         return completionsByDay
+    }
+    // MARK: - Smart Sorting
+    var dailyGoals: [Goal] {
+        goals
+            .filter { $0.isActive && !$0.isCompleted && $0.frequency == .daily }
+            .sorted { $0.progressPercentage < $1.progressPercentage }
+    }
+
+    var weeklyGoals: [Goal] {
+        goals
+            .filter { $0.isActive && !$0.isCompleted && $0.frequency == .weekly }
+            .sorted { $0.progressPercentage < $1.progressPercentage }
+    }
+
+    var monthlyGoals: [Goal] {
+        goals
+            .filter { $0.isActive && !$0.isCompleted && $0.frequency == .monthly }
+            .sorted { $0.progressPercentage < $1.progressPercentage }
+    }
+
+    var yearlyGoals: [Goal] {
+        goals
+            .filter { $0.isActive && !$0.isCompleted && $0.frequency == .yearly }
+            .sorted { $0.progressPercentage < $1.progressPercentage }
     }
 }

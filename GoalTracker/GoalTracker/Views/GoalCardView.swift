@@ -1,20 +1,11 @@
 import SwiftUI
-import UIKit
 
-// v2.5.2 - GoalCardView с Manual Input + Penalty System
-// ИЗМЕНЕНИЯ:
-// 1. Добавлен ручной ввод текущего значения для numeric целей
-// 2. Реализована penalty система для кнопки "дизлайк"
-// 3. Исправлен баг с отрицательными значениями (защита min=0)
-// 4. Кнопка минус отключается при currentValue = 0
-
+// v0.1.5 - Unified +/- System for ALL goal types
 struct GoalCardView: View {
     @EnvironmentObject var goalManager: GoalManager
     let goal: Goal
-    @State private var showingManualInput = false
-    @State private var showingPenaltyAlert = false
     @State private var showingMenu = false
-    @State private var dragOffset: CGFloat = 0
+    @State private var showingManualInput = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -51,6 +42,7 @@ struct GoalCardView: View {
                 
                 Spacer()
                 
+                // Status indicator
                 if goal.isCompleted {
                     ZStack {
                         Circle()
@@ -61,19 +53,30 @@ struct GoalCardView: View {
                             .font(.title2)
                             .foregroundColor(.green)
                     }
+                } else if goal.currentValue < 0 {
+                    // Failed state (отрицательное значение = провал)
+                    ZStack {
+                        Circle()
+                            .fill(Color.red.opacity(0.2))
+                            .frame(width: 40, height: 40)
+                        
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.red)
+                    }
                 }
             }
             
-            // MARK: - Progress Bar (with tap to input for numeric)
+            // MARK: - Progress Bar
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     if goal.trackingType == .numeric {
-                        // НОВОЕ: Тап для ручного ввода
                         Button {
+                            HapticManager.shared.impact()
                             showingManualInput = true
                         } label: {
                             HStack(spacing: 4) {
-                                Text("\(formatValue(goal.currentValue)) / \(formatValue(goal.targetValue))")
+                                Text("\(formatValue(abs(goal.currentValue))) / \(formatValue(goal.targetValue))")
                                     .font(.subheadline)
                                     .fontWeight(.medium)
                                 
@@ -84,14 +87,15 @@ struct GoalCardView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                     } else {
-                        Text(goal.isCompleted ? "Завершено" : "Не завершено")
+                        Text(statusText)
                             .font(.subheadline)
                             .fontWeight(.medium)
+                            .foregroundColor(statusColor)
                     }
                     
                     Spacer()
                     
-                    Text("\(Int(goal.progressPercentage))%")
+                    Text("\(Int(progressPercentage))%")
                         .font(.subheadline)
                         .fontWeight(.bold)
                         .foregroundColor(progressColor)
@@ -104,109 +108,136 @@ struct GoalCardView: View {
                             .fill(Color.gray.opacity(0.2))
                             .frame(height: 16)
                         
-                        // Progress
+                        // Progress (green or red)
                         RoundedRectangle(cornerRadius: 8)
                             .fill(
                                 LinearGradient(
-                                    colors: goal.isCompleted ?
-                                        [Color.green, Color.green.opacity(0.7)] :
-                                        [progressColor, progressColor.opacity(0.7)],
+                                    colors: progressGradient,
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
                             )
                             .frame(
-                                width: geometry.size.width * CGFloat(goal.progressPercentage / 100),
+                                width: geometry.size.width * CGFloat(progressPercentage / 100),
                                 height: 16
                             )
-                            .animation(.spring(), value: goal.progressPercentage)
+                            .animation(.spring(response: 0.3), value: progressPercentage)
                         
-                        // Highlight for completed goals
-                        if goal.isCompleted {
+                        // Border
+                        if goal.isCompleted || goal.currentValue < 0 {
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.green, lineWidth: 2)
+                                .stroke(goal.isCompleted ? Color.green : Color.red, lineWidth: 2)
                                 .frame(height: 16)
                         }
                     }
                 }
                 .frame(height: 16)
             }
-            
-            // MARK: - Action Buttons
+
+            // MARK: - Weekly Stats (для всех типов)
+            if let stats = goal.weeklyStats {
+                WeeklyStatsView(stats: stats,/* trackingType: goal.trackingType*/)
+                    .padding(.top, 4)
+            }
+            // MARK: - Universal +/- Buttons
             HStack(spacing: 12) {
-                if goal.trackingType == .binary {
-                    // Binary: Done / Reset button
-                    Button {
-                        goalManager.updateGoalProgress(
-                            goalId: goal.id,
-                            value: goal.currentValue >= goal.targetValue ? 0 : goal.targetValue
-                        )
-                    } label: {
-                        HStack {
-                            Image(systemName: goal.currentValue >= goal.targetValue ? "arrow.counterclockwise" : "checkmark.circle")
-                            Text(goal.currentValue >= goal.targetValue ? "Сброс" : "Завершить")
-                        }
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(goal.currentValue >= goal.targetValue ? Color.orange : Color.green)
-                        .cornerRadius(8)
-                    }
-                } else {
-                    // Numeric: +/- buttons
-                    HStack(spacing: 8) {
-                        // MINUS Button (ИСПРАВЛЕН БАГ: disabled при нуле)
-                        Button {
-                            showingPenaltyAlert = true
-                        } label: {
-                            Image(systemName: "minus.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(goal.currentValue > 0 ? .red : .gray)
-                        }
-                        .disabled(goal.currentValue <= 0)
+                // MINUS Button (Не выполнил)
+                Button {
+                    HapticManager.shared.impact(style: .medium)
+                    handleMinusButton()
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "minus.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundColor(canPressMinus ? .red : .gray)
                         
-                        // Manual Input Button
+                        Text("Не сделал")
+                            .font(.caption2)
+                            .foregroundColor(canPressMinus ? .red : .gray)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(canPressMinus ? Color.red.opacity(0.1) : Color.gray.opacity(0.05))
+                    .cornerRadius(10)
+                }
+                .disabled(!canPressMinus)
+                
+                // Current Value Display
+                VStack(spacing: 4) {
+                    if goal.trackingType == .numeric {
                         Button {
+                            HapticManager.shared.impact()
                             showingManualInput = true
                         } label: {
-                            VStack(spacing: 4) {
-                                Text("\(formatValue(goal.currentValue))")
-                                    .font(.title3)
+                            VStack(spacing: 2) {
+                                Text("\(formatValue(abs(goal.currentValue)))")
+                                    .font(.title2)
                                     .fontWeight(.bold)
+                                    .foregroundColor(goal.currentValue < 0 ? .red : .primary)
                                 
-                                Text("Ввести вручную")
+                                Text("Текущее")
                                     .font(.caption2)
+                                    .foregroundColor(.secondary)
                             }
-                            .foregroundColor(.blue)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                            .background(Color.blue.opacity(0.1))
-                            .cornerRadius(8)
                         }
-                        
-                        // PLUS Button
-                        Button {
-                            goalManager.incrementGoalProgress(goalId: goal.id, by: 1)
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(.green)
+                    } else {
+                        VStack(spacing: 2) {
+                            Text(goal.currentValue < 0 ? "✗" : (goal.isCompleted ? "✓" : "—"))
+                                .font(.title)
+                                .foregroundColor(goal.currentValue < 0 ? .red : (goal.isCompleted ? .green : .gray))
+                            
+                            Text("Статус")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                         }
                     }
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(Color.blue.opacity(0.05))
+                .cornerRadius(10)
                 
-                // Menu button
+                // PLUS Button (Выполнил)
+                Button {
+                    HapticManager.shared.success()
+                    handlePlusButton()
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundColor(canPressPlus ? .green : .gray)
+                        
+                        Text("Сделал")
+                            .font(.caption2)
+                            .foregroundColor(canPressPlus ? .green : .gray)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(canPressPlus ? Color.green.opacity(0.1) : Color.gray.opacity(0.05))
+                    .cornerRadius(10)
+                }
+                .disabled(!canPressPlus)
+                
+                // Menu
                 Menu {
                     Button {
-                        // Edit goal - открываем GoalFormView в режиме edit
+                        HapticManager.shared.impact()
                         showingMenu = true
                     } label: {
                         Label("Редактировать", systemImage: "pencil")
                     }
                     
+                    if goal.isCompleted || goal.currentValue != 0 {
+                        Button {
+                            HapticManager.shared.impact()
+                            resetGoal()
+                        } label: {
+                            Label("Сбросить", systemImage: "arrow.counterclockwise")
+                        }
+                    }
+                    
                     Button(role: .destructive) {
+                        HapticManager.shared.warning()
                         goalManager.deleteGoal(goal)
                     } label: {
                         Label("Удалить", systemImage: "trash")
@@ -215,92 +246,183 @@ struct GoalCardView: View {
                     Image(systemName: "ellipsis.circle")
                         .font(.title3)
                         .foregroundColor(.gray)
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 12)
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(8)
+                        .padding(8)
                 }
             }
         }
         .padding()
-        .background(
-            goal.isCompleted ?
-                LinearGradient(colors: [Color.green.opacity(0.1), Color.green.opacity(0.05)],
-                              startPoint: .topLeading, endPoint: .bottomTrailing) :
-                LinearGradient(colors: [Color(.systemBackground), Color(.systemBackground)],
-                              startPoint: .topLeading, endPoint: .bottomTrailing)
-        )
+        .background(cardBackground)
         .cornerRadius(16)
-        .shadow(
-            color: goal.isCompleted ? Color.green.opacity(0.3) : Color.black.opacity(0.1),
-            radius: goal.isCompleted ? 8 : 5,
-            x: 0,
-            y: 2
-        )
+        .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: 2)
+        .shadow(color: Color.black.opacity(0.3), radius: 2, x: 0, y: 1)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(goal.isCompleted ? Color.green.opacity(0.5) : Color.clear, lineWidth: 2)
+                .stroke(borderColor, lineWidth: 2)
         )
-        // MARK: - Sheets and Alerts
         .sheet(isPresented: $showingManualInput) {
             ManualProgressInputView(goal: goal)
         }
         .sheet(isPresented: $showingMenu) {
             GoalFormView(mode: .edit(goal))
         }
-        .alert("Не выполнил цель?", isPresented: $showingPenaltyAlert) {
-            Button("Отмена", role: .cancel) { }
-            Button("Да, получить штраф", role: .destructive) {
-                applyPenalty()
-            }
-        } message: {
-            Text("Штраф: -\(goal.difficulty.penaltyAmount) монет, -\(goal.difficulty.statPenalty) к статам персонажа")
+    }
+    
+    // MARK: - Logic
+    
+    private func handlePlusButton() {
+        if goal.trackingType == .numeric {
+            // Для numeric: +1 к значению
+            goalManager.incrementGoalProgress(goalId: goal.id, by: 1)
+        } else {
+            // Для binary/habit: пометить как выполнено
+            goalManager.updateGoalProgress(goalId: goal.id, value: goal.targetValue)
         }
     }
     
-    // MARK: - Penalty System
-    private func applyPenalty() {
-        // 1. Отнять монеты
+    private func handleMinusButton() {
+        if goal.trackingType == .numeric {
+            // Для numeric: открыть ручной ввод или -1
+            if goal.currentValue > 0 {
+                goalManager.decrementGoalProgress(goalId: goal.id, by: 1)
+            }
+        } else {
+            // Для binary/habit: пометить как провалено (отрицательное значение)
+            applyFailurePenalty()
+        }
+    }
+    
+    private func applyFailurePenalty() {
+        // Штрафы
         let coinPenalty = goal.difficulty.penaltyAmount
         goalManager.userProfile.coins = max(0, goalManager.userProfile.coins - coinPenalty)
         
-        // 2. Уменьшить статы персонажа
         let statPenalty = goal.difficulty.statPenalty
-        
-        // Всегда бьет по дисциплине
         goalManager.userProfile.characterStats.updateStat(for: .discipline, change: -statPenalty)
         
-        // Определяем какую еще характеристику понизить
-        let title = goal.title.lowercased()
-        let description = goal.description.lowercased()
-        let combinedText = title + " " + description
-        
-        if combinedText.contains("спорт") || combinedText.contains("тренировка") || combinedText.contains("бег") {
-            goalManager.userProfile.characterStats.updateStat(for: .physical, change: -statPenalty)
-        } else if combinedText.contains("книга") || combinedText.contains("учить") || combinedText.contains("курс") {
-            goalManager.userProfile.characterStats.updateStat(for: .mental, change: -statPenalty)
-        } else if combinedText.contains("вода") || combinedText.contains("сон") || combinedText.contains("здоров") {
-            goalManager.userProfile.characterStats.updateStat(for: .health, change: -statPenalty)
-        } else if combinedText.contains("работа") || combinedText.contains("бизнес") || combinedText.contains("проект") {
-            goalManager.userProfile.characterStats.updateStat(for: .career, change: -statPenalty)
-        } else if combinedText.contains("семья") || combinedText.contains("друзья") || combinedText.contains("звонок") {
-            goalManager.userProfile.characterStats.updateStat(for: .social, change: -statPenalty)
-        }
-        
-        // 3. Визуальный эффект (уже есть haptic в updateGoalProgress)
-        goalManager.decrementGoalProgress(goalId: goal.id, by: 1)
-        
-        // 4. Сохранить
+        // Пометить как провал (отрицательное значение)
+        goalManager.updateGoalProgress(goalId: goal.id, value: -1)
         goalManager.saveProfile()
     }
     
-    private var progressColor: Color {
-        if goal.progressPercentage >= 100 {
+    private func resetGoal() {
+        goalManager.updateGoalProgress(goalId: goal.id, value: 0)
+    }
+    
+    // MARK: - Computed Properties
+    
+    private var canPressPlus: Bool {
+        // Можно нажать плюс если цель не выполнена
+        return !goal.isCompleted && goal.currentValue >= 0
+    }
+    
+    private var canPressMinus: Bool {
+        // Можно нажать минус если:
+        // 1. Для numeric: есть что уменьшать
+        // 2. Для binary/habit: ещё не отмечено как провал
+        if goal.trackingType == .numeric {
+            return goal.currentValue > 0
+        } else {
+            return goal.currentValue >= 0
+        }
+    }
+    
+    private var progressPercentage: Double {
+        if goal.currentValue < 0 {
+            return 100 // Полная красная полоса для провала
+        }
+        guard goal.targetValue > 0 else { return 0 }
+        return min((abs(goal.currentValue) / goal.targetValue) * 100, 100)
+    }
+    
+    private var statusText: String {
+        if goal.currentValue < 0 {
+            return "Не выполнено"
+        } else if goal.isCompleted {
+            return "Завершено"
+        } else {
+            return "В процессе"
+        }
+    }
+    
+    private var statusColor: Color {
+        if goal.currentValue < 0 {
+            return .red
+        } else if goal.isCompleted {
             return .green
-        } else if goal.progressPercentage >= 50 {
+        } else {
+            return .secondary
+        }
+    }
+    
+    private var progressColor: Color {
+        if goal.currentValue < 0 {
+            return .red
+        } else if goal.isCompleted {
+            return .green
+        } else if progressPercentage >= 50 {
             return .orange
         } else {
             return .blue
+        }
+    }
+    
+    private var progressGradient: [Color] {
+        if goal.currentValue < 0 {
+            return [Color.red, Color.red.opacity(0.7)]
+        } else if goal.isCompleted {
+            return [Color.green, Color.green.opacity(0.7)]
+        } else {
+            return [progressColor, progressColor.opacity(0.7)]
+        }
+    }
+    
+    private var cardBackground: LinearGradient {
+        if goal.currentValue < 0 {
+            return LinearGradient(
+                colors: [Color.red.opacity(0.1), Color.red.opacity(0.05)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else if goal.isCompleted {
+            return LinearGradient(
+                colors: [Color.green.opacity(0.1), Color.green.opacity(0.05)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else {
+            // Обычная карточка - чуть светлее чем фон
+            return LinearGradient(
+                colors: [
+                    Color(.systemGray6).opacity(0.5),
+                    Color(.systemGray6).opacity(0.3)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+    
+    private var shadowColor: Color {
+        if goal.currentValue < 0 {
+            return Color.red.opacity(0.3)
+        } else if goal.isCompleted {
+            return Color.green.opacity(0.3)
+        } else {
+            return Color.black.opacity(0.1)
+        }
+    }
+    
+    private var shadowRadius: CGFloat {
+        (goal.isCompleted || goal.currentValue < 0) ? 8 : 5
+    }
+    
+    private var borderColor: Color {
+        if goal.currentValue < 0 {
+            return Color.red.opacity(0.5)
+        } else if goal.isCompleted {
+            return Color.green.opacity(0.5)
+        } else {
+            return Color.gray.opacity(0.15)  // ← ТОНКАЯ СЕРАЯ ГРАНИЦА
         }
     }
     
@@ -313,7 +435,7 @@ struct GoalCardView: View {
     }
 }
 
-// MARK: - Manual Progress Input View (NEW!)
+// MARK: - Manual Input (для numeric целей)
 struct ManualProgressInputView: View {
     @EnvironmentObject var goalManager: GoalManager
     @Environment(\.dismiss) var dismiss
@@ -323,13 +445,12 @@ struct ManualProgressInputView: View {
     
     init(goal: Goal) {
         self.goal = goal
-        _inputValue = State(initialValue: String(Int(goal.currentValue)))
+        _inputValue = State(initialValue: String(Int(abs(goal.currentValue))))
     }
     
     var body: some View {
         NavigationView {
             VStack(spacing: 24) {
-                // Icon and title
                 VStack(spacing: 8) {
                     Image(systemName: goal.icon)
                         .font(.system(size: 60))
@@ -340,15 +461,14 @@ struct ManualProgressInputView: View {
                         .fontWeight(.bold)
                         .multilineTextAlignment(.center)
                     
-                    Text("Текущее: \(formatValue(goal.currentValue)) / Цель: \(formatValue(goal.targetValue))")
+                    Text("Цель: \(formatValue(goal.targetValue))")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
                 .padding(.top)
                 
-                // Input field
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Введите текущее значение")
+                    Text("Введите значение")
                         .font(.headline)
                     
                     TextField("Значение", text: $inputValue)
@@ -357,43 +477,32 @@ struct ManualProgressInputView: View {
                         .font(.title)
                         .multilineTextAlignment(.center)
                         .focused($isInputFocused)
-                        .onChange(of: inputValue) { oldValue, newValue in
-                            let filtered = newValue.filter { $0.isNumber }
-                            if filtered != newValue {
-                                inputValue = filtered
-                            }
-                        }
                 }
                 .padding(.horizontal)
                 
-                // Quick increment buttons
-                VStack(spacing: 12) {
-                    Text("Или добавить:")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        ForEach([1, 5, 10, 50, 100, 500], id: \.self) { increment in
-                            Button {
-                                let current = Double(inputValue) ?? goal.currentValue
-                                inputValue = String(Int(current + Double(increment)))
-                            } label: {
-                                Text("+\(increment)")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(Color.green)
-                                    .cornerRadius(10)
-                            }
+                // Quick buttons
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    ForEach([1, 5, 10, 50, 100], id: \.self) { increment in
+                        Button {
+                            HapticManager.shared.impact()
+                            let current = Double(inputValue) ?? 0
+                            inputValue = String(Int(current + Double(increment)))
+                        } label: {
+                            Text("+\(increment)")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color.green)
+                                .cornerRadius(10)
                         }
                     }
                 }
                 .padding(.horizontal)
                 
-                // Save button
                 Button {
                     if let value = Double(inputValue), value >= 0 {
+                        HapticManager.shared.success()
                         goalManager.updateGoalProgress(goalId: goal.id, value: min(value, goal.targetValue))
                         dismiss()
                     }
@@ -403,21 +512,18 @@ struct ManualProgressInputView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(isValidInput ? Color.blue : Color.gray)
+                        .background(Color.blue)
                         .cornerRadius(12)
                 }
                 .padding(.horizontal)
-                .disabled(!isValidInput)
                 
                 Spacer()
             }
-            .navigationTitle("Обновить прогресс")
+            .navigationTitle("Обновить")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Отмена") {
-                        dismiss()
-                    }
+                    Button("Отмена") { dismiss() }
                 }
             }
             .onAppear {
@@ -426,21 +532,12 @@ struct ManualProgressInputView: View {
         }
     }
     
-    private var isValidInput: Bool {
-        guard let value = Double(inputValue) else { return false }
-        return value >= 0 && value <= goal.targetValue
-    }
-    
     private func formatValue(_ value: Double) -> String {
-        if value.truncatingRemainder(dividingBy: 1) == 0 {
-            return String(Int(value))
-        } else {
-            return String(format: "%.1f", value)
-        }
+        String(Int(value))
     }
 }
 
-// MARK: - Difficulty Extension (Penalty amounts)
+// MARK: - Difficulty Penalties
 extension Difficulty {
     var penaltyAmount: Int {
         switch self {
@@ -460,18 +557,127 @@ extension Difficulty {
         }
     }
 }
-
-#Preview {
-    GoalCardView(goal: Goal(
-        title: "Пройти 10,000 шагов",
-        description: "Ходить больше каждый день",
-        frequency: .daily,
-        trackingType: .numeric,
-        difficulty: .medium,
-        targetValue: 10000,
-        currentValue: 5000,
-        icon: "figure.walk"
-    ))
-    .environmentObject(GoalManager())
-    .padding()
+        // MARK: - Weekly Stats View
+// MARK: - Weekly Stats View
+struct WeeklyStatsView: View {
+    let stats: WeeklyStats
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Average line
+            HStack(spacing: 6) {
+                Image(systemName: "chart.bar.fill")
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                
+                Text("За неделю:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                if stats.trackingType == .numeric {
+                    Text("\(String(format: "%.1f", stats.averageValue)) / \(String(format: "%.0f", stats.totalTarget / 7))")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                } else {
+                    Text("\(Int(stats.successRate))% дней")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+                
+                Text("(\(Int(stats.averagePercentage))%)")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(performanceColor)
+                
+                Image(systemName: stats.trend.icon)
+                    .font(.caption)
+                    .foregroundColor(stats.trend.color)
+                
+                Spacer()
+            }
+            
+            // Mini chart
+            HStack(spacing: 4) {
+                ForEach(stats.dailyValues) { day in
+                    VStack(spacing: 2) {
+                        if stats.trackingType == .numeric {
+                            // Для numeric - bar chart (СТОЛБИКИ)
+                            GeometryReader { geometry in
+                                VStack {
+                                    Spacer()
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(barColor(for: day.percentage))
+                                        .frame(height: geometry.size.height * CGFloat(day.percentage / 100))
+                                }
+                            }
+                        } else {
+                            // Для binary/habit - checkmarks (ГАЛОЧКИ)
+                            ZStack {
+                                Circle()
+                                    .fill(day.percentage >= 100 ? Color.green.opacity(0.2) : Color.gray.opacity(0.1))
+                                    .frame(width: 30, height: 30)
+                                
+                                if day.percentage >= 100 {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.green)
+                                } else {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                        }
+                        
+                        // Day label
+                        Text(day.dayName)
+                            .font(.system(size: 8))
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: stats.trackingType == .numeric ? 40 : 50)
+        }
+        .padding(8)
+        .background(Color.blue.opacity(0.05))
+        .cornerRadius(8)
+    }
+    
+    private var performanceColor: Color {
+        if stats.averagePercentage >= 80 {
+            return .green
+        } else if stats.averagePercentage >= 50 {
+            return .orange
+        } else {
+            return .red
+        }
+    }
+    
+    private func barColor(for percentage: Double) -> Color {
+        if percentage >= 100 {
+            return .green
+        } else if percentage >= 80 {
+            return .blue
+        } else if percentage >= 50 {
+            return .orange
+        } else {
+            return .red
+        }
+    }
 }
+        #Preview {
+            GoalCardView(goal: Goal(
+                title: "Медитация",
+                description: "Медитировать каждый день",
+                frequency: .daily,
+                trackingType: .binary,
+                difficulty: .medium,
+                targetValue: 1,
+                icon: "brain.head.profile"
+            ))
+            .environmentObject(GoalManager())
+            .padding()
+        }
+
+

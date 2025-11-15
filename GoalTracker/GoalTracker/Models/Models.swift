@@ -63,6 +63,81 @@ struct Goal: Identifiable, Codable {
         let baseReward = difficulty.coinMultiplier
         return baseReward
     }
+    
+    // Weekly stats для ВСЕХ типов целей
+    var weeklyStats: WeeklyStats? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        var dailyValues: [WeeklyStats.DayValue] = []
+        var totalValue: Double = 0
+        var successCount = 0
+        
+        for dayOffset in (0..<7).reversed() {
+            guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: today) else { continue }
+            
+            let dayRecords = completionHistory.filter {
+                calendar.isDate($0.date, inSameDayAs: date)
+            }
+            
+            let dayValue: Double
+            let percentage: Double
+            
+            if trackingType == .numeric {
+                dayValue = dayRecords.last?.value ?? 0
+                percentage = targetValue > 0 ? (dayValue / targetValue) * 100 : 0
+            } else {
+                dayValue = dayRecords.isEmpty ? 0 : 1
+                percentage = dayValue * 100
+            }
+            
+            dailyValues.append(WeeklyStats.DayValue(
+                date: date,
+                value: dayValue,
+                target: targetValue,
+                percentage: min(percentage, 100)
+            ))
+            
+            totalValue += dayValue
+            if percentage >= 100 {
+                successCount += 1
+            }
+        }
+        
+        let averageValue = totalValue / 7.0
+        let averagePercentage: Double
+        
+        if trackingType == .numeric {
+            averagePercentage = targetValue > 0 ? (averageValue / targetValue) * 100 : 0
+        } else {
+            averagePercentage = Double(successCount) / 7.0 * 100
+        }
+        
+        let successRate = Double(successCount) / 7.0 * 100
+        
+        let firstHalf = dailyValues.prefix(3).map { $0.percentage }.reduce(0, +) / 3.0
+        let secondHalf = dailyValues.suffix(4).map { $0.percentage }.reduce(0, +) / 4.0
+        
+        let trend: Trend
+        if secondHalf > firstHalf + 10 {
+            trend = .improving
+        } else if secondHalf < firstHalf - 10 {
+            trend = .declining
+        } else {
+            trend = .stable
+        }
+        
+        return WeeklyStats(
+            dailyValues: dailyValues,
+            averageValue: averageValue,
+            averagePercentage: min(averagePercentage, 100),
+            totalValue: totalValue,
+            totalTarget: targetValue * 7,
+            successRate: successRate,
+            trend: trend,
+            trackingType: trackingType
+        )
+    }
 }
 
 // MARK: - Completion Record
@@ -77,6 +152,57 @@ struct CompletionRecord: Codable, Identifiable {
         self.date = date
         self.value = value
         self.coinsEarned = coinsEarned
+    }
+}
+
+// MARK: - Weekly Stats
+struct WeeklyStats {
+    let dailyValues: [DayValue]
+    let averageValue: Double
+    let averagePercentage: Double
+    let totalValue: Double
+    let totalTarget: Double
+    let successRate: Double
+    let trend: Trend
+    let trackingType: TrackingType
+    
+    struct DayValue: Identifiable {
+        let id = UUID()
+        let date: Date
+        let value: Double
+        let target: Double
+        let percentage: Double
+        
+        var dayName: String {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "ru_RU")
+            formatter.dateFormat = "EEE"
+            let day = formatter.string(from: date)
+            return String(day.prefix(2)).capitalized
+        }
+    }
+}
+
+// MARK: - Trend
+enum Trend {
+    case improving
+    case stable
+    case declining
+    
+    var icon: String {
+        switch self {
+        case .improving: return "arrow.up.right"
+        case .stable: return "arrow.right"
+        case .declining: return "arrow.down.right"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .improving: return .green
+        case .stable: return .orange
+        case .declining: return .red
+        }
     }
 }
 
@@ -98,6 +224,14 @@ enum TrackingType: String, Codable, CaseIterable {
         case .binary: return "checkmark.circle"
         case .numeric: return "number.circle"
         case .habit: return "repeat.circle"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .binary: return "Завершено или не завершено"
+        case .numeric: return "Достичь числового значения"
+        case .habit: return "Отмечать каждый раз"
         }
     }
 }
@@ -132,6 +266,15 @@ enum Difficulty: String, Codable, CaseIterable {
         case .medium: return "yellow"
         case .hard: return "red"
         case .epic: return "purple"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .easy: return "Простая цель, легко достижима"
+        case .medium: return "Требует усилий и постоянства"
+        case .hard: return "Сложная, нужна дисциплина"
+        case .epic: return "Эпическая цель, максимальный челлендж"
         }
     }
 }
@@ -193,7 +336,7 @@ enum AchievementRarity: String, Codable, CaseIterable {
     }
 }
 
-// MARK: - Reward Model (v2.5 - FIXED)
+// MARK: - Reward Model
 struct Reward: Identifiable, Codable {
     let id: UUID
     var title: String
@@ -201,8 +344,8 @@ struct Reward: Identifiable, Codable {
     var cost: Int
     var icon: String
     var category: RewardCategory
-    var isPurchased: Bool  // ← ВАЖНО: var
-    var purchaseDate: Date? // ← ВАЖНО: var
+    var isPurchased: Bool
+    var purchaseDate: Date?
     
     init(
         id: UUID = UUID(),
@@ -259,7 +402,7 @@ struct UserProfile: Codable {
     var lastActivityDate: Date
     var totalGoalsCompleted: Int
     var characterStats: CharacterStats
-    var health: Int // HP персонажа (0-100)
+    var health: Int
     var maxHealth: Int
     
     init(
@@ -305,7 +448,6 @@ struct UserProfile: Codable {
     }
 }
 
-// MARK: - Character Stats
 // MARK: - Character Stats
 struct CharacterStats: Codable {
     var physical: Int = 0
@@ -357,7 +499,7 @@ struct CharacterStats: Codable {
     }
 }
 
-// MARK: - BodyType (ДОЛЖЕН БЫТЬ ДО StatCategory!)
+// MARK: - BodyType
 enum BodyType: String, Codable {
     case overweight = "Начинающий"
     case average = "Обычный"

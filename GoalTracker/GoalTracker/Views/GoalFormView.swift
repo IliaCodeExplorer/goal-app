@@ -1,7 +1,7 @@
 import SwiftUI
 import Foundation
 
-// v2.5.1 - Unified Goal Form
+// v0.1.3 - Fixed Icon Button + Haptics + Binary/Habit creation
 struct GoalFormView: View {
     @EnvironmentObject var goalManager: GoalManager
     @Environment(\.dismiss) var dismiss
@@ -69,8 +69,9 @@ struct GoalFormView: View {
                 Form {
                     // MARK: - Goal Details Section
                     Section {
-                        HStack {
+                        HStack(spacing: 12) {
                             Button {
+                                HapticManager.shared.impact()
                                 showingIconPicker = true
                             } label: {
                                 Image(systemName: selectedIcon)
@@ -80,12 +81,13 @@ struct GoalFormView: View {
                                     .background(Color.blue.opacity(0.1))
                                     .cornerRadius(10)
                             }
+                            .buttonStyle(PlainButtonStyle())
                             
                             VStack(alignment: .leading, spacing: 4) {
                                 TextField("Название цели", text: $title)
                                     .font(.body)
                                 
-                                Text("Нажмите на иконку для выбора")
+                                Text("Нажмите на иконку слева")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -106,7 +108,8 @@ struct GoalFormView: View {
                                     difficulty: difficulty,
                                     isSelected: selectedDifficulty == difficulty
                                 ) {
-                                    withAnimation(.spring()) {
+                                    HapticManager.shared.impact()
+                                    withAnimation(.easeInOut(duration: 0.2)) {
                                         selectedDifficulty = difficulty
                                     }
                                 }
@@ -143,25 +146,49 @@ struct GoalFormView: View {
                     
                     // MARK: - Tracking Type Section
                     Section {
-                        Picker("Тип", selection: $selectedTrackingType) {
-                            ForEach(TrackingType.allCases, id: \.self) { type in
-                                HStack {
-                                    Image(systemName: type.icon)
-                                    Text(type.rawValue)
+                        ForEach(TrackingType.allCases, id: \.self) { type in
+                            Button {
+                                HapticManager.shared.selection()
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    selectedTrackingType = type
                                 }
-                                .tag(type)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: type.icon)
+                                        .font(.title3)
+                                        .foregroundColor(selectedTrackingType == type ? .blue : .gray)
+                                        .frame(width: 30)
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(type.rawValue)
+                                            .font(.body)
+                                            .foregroundColor(.primary)
+                                        
+                                        Text(type.description)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    if selectedTrackingType == type {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.blue)
+                                            .font(.title3)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                                .padding(.vertical, 4)
                             }
+                            .buttonStyle(PlainButtonStyle())
                         }
-                        .pickerStyle(.segmented)
                         
-                        if selectedTrackingType == .binary {
-                            Text("Да/Нет отслеживание - Завершено или не завершено")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        } else {
+                        // Целевое значение для Numeric
+                        if selectedTrackingType == .numeric {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Целевое значение")
                                     .font(.subheadline)
+                                    .foregroundColor(.secondary)
                                 
                                 TextField("Введите число", text: $targetValue)
                                     .keyboardType(.numberPad)
@@ -192,6 +219,7 @@ struct GoalFormView: View {
                 // MARK: - Action Button
                 VStack {
                     Button {
+                        HapticManager.shared.impact(style: .medium)
                         saveGoal()
                     } label: {
                         HStack {
@@ -247,14 +275,17 @@ struct GoalFormView: View {
     private func saveGoal() {
         let target: Double
         
-        if selectedTrackingType == .binary {
+        // FIX: Binary и Habit тоже должны создаваться
+        if selectedTrackingType == .binary || selectedTrackingType == .habit {
             target = 1.0
         } else {
             let filtered = targetValue.filter { $0.isNumber }
-            target = Double(filtered) ?? 0
+            guard let value = Double(filtered), value > 0 else {
+                HapticManager.shared.error()
+                return
+            }
+            target = value
         }
-        
-        guard target > 0 else { return }
         
         switch mode {
         case .create:
@@ -269,6 +300,7 @@ struct GoalFormView: View {
                 isRepeating: isRepeating
             )
             goalManager.addGoal(newGoal)
+            HapticManager.shared.success()
             
         case .edit(let existingGoal):
             var updatedGoal = existingGoal
@@ -281,6 +313,7 @@ struct GoalFormView: View {
             updatedGoal.icon = selectedIcon
             updatedGoal.isRepeating = isRepeating
             goalManager.updateGoal(updatedGoal)
+            HapticManager.shared.success()
         }
         
         dismiss()
@@ -348,17 +381,6 @@ struct DifficultyOptionView: View {
         case .medium: return .orange
         case .hard: return .red
         case .epic: return .purple
-        }
-    }
-}
-
-extension Difficulty {
-    var description: String {
-        switch self {
-        case .easy: return "Простая цель, легко достижима"
-        case .medium: return "Требует усилий и постоянства"
-        case .hard: return "Сложная, нужна дисциплина"
-        case .epic: return "Эпическая цель, максимальный челлендж"
         }
     }
 }

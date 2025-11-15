@@ -1,18 +1,21 @@
-//
-//  GoalTrackerApp.swift
-//  GoalTracker
-//
-//  Created by Ilyas on 11/5/25.
-//
-
 import SwiftUI
 
+// v0.1.4 - Auto-reset on app launch
 @main
 struct GoalTrackerApp: App {
+    @StateObject private var goalManager = GoalManager()
+    @Environment(\.scenePhase) private var scenePhase
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(GoalManager())
+                .environmentObject(goalManager)
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            if newPhase == .active {
+                print("🚀 App became active")
+                goalManager.checkAndResetRepeatingGoals()
+            }
         }
     }
 }

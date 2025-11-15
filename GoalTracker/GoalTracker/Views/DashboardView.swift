@@ -1,12 +1,12 @@
 import SwiftUI
-import Foundation
+import Combine
 
-// v2.5.4 - DashboardView Update (БЕЗ CoinAnimationView - он уже где-то существует)
-
+// v0.1.5.2 - Smart sorting + Collapsible completed section
 struct DashboardView: View {
     @EnvironmentObject var goalManager: GoalManager
     @State private var showingAddGoal = false
     @State private var showingTemplates = false
+    @State private var showCompletedGoals = false
     
     var body: some View {
         NavigationView {
@@ -15,41 +15,59 @@ struct DashboardView: View {
                     EmptyStateView(showingAddGoal: $showingAddGoal, showingTemplates: $showingTemplates)
                 } else {
                     ScrollView {
-                        VStack(spacing: 20) {
+                        VStack(spacing: 24) {
                             // Header Stats
                             HeaderStatsView()
                                 .padding(.horizontal)
                             
-                            // Active Goals
-                            if !goalManager.activeGoals.isEmpty {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("Активные цели")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                        .padding(.horizontal)
-                                    
-                                    ForEach(goalManager.activeGoals) { goal in
-                                        GoalCardView(goal: goal)
-                                            .padding(.horizontal)
-                                    }
-                                }
+                            // Daily Goals Section
+                            if !goalManager.dailyGoals.isEmpty {
+                                GoalSectionView(
+                                    title: "Сегодня",
+                                    icon: "sun.max.fill",
+                                    color: .orange,
+                                    goals: goalManager.dailyGoals
+                                )
                             }
                             
-                            // Completed Goals
-                            if !goalManager.completedGoalsList.isEmpty {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("Завершенные")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.green)
-                                        .padding(.horizontal)
-                                    
-                                    ForEach(goalManager.completedGoalsList) { goal in
-                                        GoalCardView(goal: goal)
-                                            .padding(.horizontal)
-                                    }
-                                }
+                            // Weekly Goals Section
+                            if !goalManager.weeklyGoals.isEmpty {
+                                GoalSectionView(
+                                    title: "Эта неделя",
+                                    icon: "calendar",
+                                    color: .blue,
+                                    goals: goalManager.weeklyGoals
+                                )
                             }
+                            
+                            // Monthly Goals Section
+                            if !goalManager.monthlyGoals.isEmpty {
+                                GoalSectionView(
+                                    title: "Этот месяц",
+                                    icon: "calendar.badge.clock",
+                                    color: .purple,
+                                    goals: goalManager.monthlyGoals
+                                )
+                            }
+                            
+                            // Yearly Goals Section
+                            if !goalManager.yearlyGoals.isEmpty {
+                                GoalSectionView(
+                                    title: "Этот год",
+                                    icon: "calendar.circle",
+                                    color: .indigo,
+                                    goals: goalManager.yearlyGoals
+                                )
+                            }
+                            
+                            // Completed Goals Collapsible Section
+                            if !goalManager.completedGoalsList.isEmpty {
+                                CompletedGoalsSectionView(isExpanded: $showCompletedGoals)
+                                    .padding(.horizontal)
+                            }
+                            
+                            // Bottom spacing
+                            Color.clear.frame(height: 20)
                         }
                         .padding(.vertical)
                     }
@@ -61,18 +79,12 @@ struct DashboardView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                         .zIndex(100)
                 }
-                
-                // Coin Animation Overlay - используем существующий компонент
-                if goalManager.showCoinAnimation {
-                    CoinAnimationView(amount: goalManager.coinsEarned)
-                        .transition(.scale.combined(with: .opacity))
-                        .zIndex(99)
-                }
             }
             .navigationTitle("Мои цели")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
+                        HapticManager.shared.impact()
                         showingTemplates = true
                     } label: {
                         Image(systemName: "list.bullet.rectangle")
@@ -82,6 +94,7 @@ struct DashboardView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
+                        HapticManager.shared.impact()
                         showingAddGoal = true
                     } label: {
                         Image(systemName: "plus.circle.fill")
@@ -97,11 +110,105 @@ struct DashboardView: View {
             }
         }
         .onAppear {
+            print("🏠 Dashboard appeared")
+            goalManager.checkAndResetRepeatingGoals()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            print("📱 App entered foreground")
             goalManager.checkAndResetRepeatingGoals()
         }
     }
 }
 
+// MARK: - Goal Section View
+struct GoalSectionView: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let goals: [Goal]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundColor(color)
+                
+                Text(title)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Text("(\(goals.count))")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+            }
+            .padding(.horizontal)
+            
+            ForEach(goals) { goal in
+                GoalCardView(goal: goal)
+                    .padding(.horizontal)
+            }
+        }
+    }
+}
+
+// MARK: - Completed Goals Collapsible Section
+struct CompletedGoalsSectionView: View {
+    @EnvironmentObject var goalManager: GoalManager
+    @Binding var isExpanded: Bool
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header Button
+            Button {
+                HapticManager.shared.impact()
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title3)
+                        .foregroundColor(.green)
+                    
+                    Text("Завершенные")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    
+                    Text("(\(goalManager.completedGoalsList.count))")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(12)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Expandable Content
+            // Expandable Content
+            if isExpanded {
+                VStack(spacing: 12) {
+                    ForEach(goalManager.completedGoalsList) { goal in
+                        GoalCardView(goal: goal)
+                    }
+                }
+                .padding(.top, 12)
+            }
+        }
+    }
+}
+
+// MARK: - Header Stats
 struct HeaderStatsView: View {
     @EnvironmentObject var goalManager: GoalManager
     
@@ -128,6 +235,7 @@ struct HeaderStatsView: View {
     }
 }
 
+// MARK: - Stat Box
 struct StatBoxView: View {
     let title: String
     let value: String
@@ -150,6 +258,7 @@ struct StatBoxView: View {
     }
 }
 
+// MARK: - Empty State
 struct EmptyStateView: View {
     @Binding var showingAddGoal: Bool
     @Binding var showingTemplates: Bool
@@ -172,6 +281,7 @@ struct EmptyStateView: View {
             
             HStack(spacing: 16) {
                 Button {
+                    HapticManager.shared.impact()
                     showingTemplates = true
                 } label: {
                     Label("Шаблоны", systemImage: "list.bullet.rectangle")
@@ -183,6 +293,7 @@ struct EmptyStateView: View {
                 }
                 
                 Button {
+                    HapticManager.shared.impact()
                     showingAddGoal = true
                 } label: {
                     Label("Создать", systemImage: "plus.circle.fill")

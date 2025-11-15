@@ -105,23 +105,44 @@ struct EditGoalView: View {
                 }
                 
                 Section("Тип отслеживания") {
-                    Picker("Тип", selection: $selectedTrackingType) {
-                        ForEach(TrackingType.allCases, id: \.self) { type in
+                    ForEach(TrackingType.allCases, id: \.self) { type in
+                        Button {
+                            selectedTrackingType = type
+                        } label: {
                             HStack {
                                 Image(systemName: type.icon)
+                                    .font(.title3)
+                                    .foregroundColor(.blue)
+                                    .frame(width: 30)
+                                
                                 Text(type.rawValue)
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                if selectedTrackingType == type {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.blue)
+                                        .font(.body.weight(.semibold))
+                                }
                             }
-                            .tag(type)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(PlainButtonStyle())
                     }
-                    .pickerStyle(.menu)
                     
-                    if selectedTrackingType == .binary {
-                        Text("Да/Нет отслеживание - Завершено или не завершено")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        VStack(alignment: .leading, spacing: 8) {
+                    // Описание выбранного типа
+                    VStack(alignment: .leading, spacing: 8) {
+                        if selectedTrackingType == .binary {
+                            Text("Да/Нет отслеживание - Завершено или не завершено")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else if selectedTrackingType == .habit {
+                            Text("Привычка - Отмечайте каждый раз когда выполняете")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
                             Text("Целевое значение")
                                 .font(.subheadline)
                             
@@ -129,6 +150,7 @@ struct EditGoalView: View {
                                 .keyboardType(.decimalPad)
                                 .textFieldStyle(.roundedBorder)
                                 .onChange(of: targetValue) { oldValue, newValue in
+                                    // Фильтруем только числа и точку
                                     let filtered = newValue.filter { $0.isNumber || $0 == "." }
                                     if filtered != newValue {
                                         targetValue = filtered
@@ -140,6 +162,7 @@ struct EditGoalView: View {
                                 .foregroundColor(.secondary)
                         }
                     }
+                    .listRowBackground(Color.clear)
                 }
                 
                 Section("История") {
