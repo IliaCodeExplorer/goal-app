@@ -337,6 +337,7 @@ enum AchievementRarity: String, Codable, CaseIterable {
 }
 
 // MARK: - Reward Model
+// MARK: - Reward Model
 struct Reward: Identifiable, Codable {
     let id: UUID
     var title: String
@@ -344,8 +345,8 @@ struct Reward: Identifiable, Codable {
     var cost: Int
     var icon: String
     var category: RewardCategory
-    var isPurchased: Bool
-    var purchaseDate: Date?
+    var isCustom: Bool
+    var purchaseHistory: [PurchaseRecord]
     
     init(
         id: UUID = UUID(),
@@ -354,8 +355,10 @@ struct Reward: Identifiable, Codable {
         cost: Int,
         icon: String,
         category: RewardCategory,
-        isPurchased: Bool = false,
-        purchaseDate: Date? = nil
+        status: RewardStatus = .available,
+        purchaseDate: Date? = nil,
+        redeemedDate: Date? = nil,
+        isCustom: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -363,31 +366,117 @@ struct Reward: Identifiable, Codable {
         self.cost = cost
         self.icon = icon
         self.category = category
-        self.isPurchased = isPurchased
-        self.purchaseDate = purchaseDate
+        self.isCustom = isCustom
+        self.purchaseHistory = []
+    }
+    
+    // Удобные проверки
+    var totalPurchases: Int {
+        purchaseHistory.count
+    }
+    
+    var totalSpent: Int {
+        purchaseHistory.reduce(0) { $0 + $1.cost }
+    }
+    
+    var todayPurchases: Int {
+        let calendar = Calendar.current
+        return purchaseHistory.filter {
+            calendar.isDateInToday($0.date)
+        }.count
+    }
+    
+    var weekPurchases: Int {
+        let calendar = Calendar.current
+        let weekAgo = calendar.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        return purchaseHistory.filter {
+            $0.date >= weekAgo
+        }.count
+    }
+    
+    var pendingRedemptions: Int {
+        purchaseHistory.filter { !$0.isRedeemed }.count
+    }
+    
+    var lastPurchaseDate: Date? {
+        purchaseHistory.last?.date
+    }
+    
+    var isPurchased: Bool {
+        !purchaseHistory.isEmpty
+    }
+    
+    var hasUnredeemedPurchases: Bool {
+        purchaseHistory.contains { !$0.isRedeemed }
     }
 }
 
+// MARK: - Purchase Record
+struct PurchaseRecord: Identifiable, Codable {
+    let id: UUID
+    let date: Date
+    let cost: Int
+    var isRedeemed: Bool
+    var redeemedDate: Date?
+    
+    init(
+        id: UUID = UUID(),
+        date: Date = Date(),
+        cost: Int,
+        isRedeemed: Bool = false,
+        redeemedDate: Date? = nil
+    ) {
+        self.id = id
+        self.date = date
+        self.cost = cost
+        self.isRedeemed = isRedeemed
+        self.redeemedDate = redeemedDate
+    }
+}
+
+// MARK: - Reward Status (для обратной совместимости)
+enum RewardStatus: String, Codable, CaseIterable {
+    case available = "Доступно"
+    case purchased = "Куплено"
+    case redeemed = "Использовано"
+    
+    var icon: String {
+        switch self {
+        case .available: return "cart"
+        case .purchased: return "bag.fill"
+        case .redeemed: return "checkmark.circle.fill"
+        }
+    }
+    
+    var color: String {
+        switch self {
+        case .available: return "blue"
+        case .purchased: return "orange"
+        case .redeemed: return "green"
+        }
+    }
+}
 enum RewardCategory: String, Codable, CaseIterable {
-    case virtual = "Виртуальное"
-    case food = "Еда"
-    case entertainment = "Развлечения"
-    case fitness = "Фитнес"
-    case shopping = "Покупки"
-    case selfCare = "Забота о себе"
-    case social = "Социальное"
+    case instant = "Мгновенное"
+    case experience = "Впечатления"
+    case purchase = "Покупка"
     case bigGoal = "Большая цель"
     
     var icon: String {
         switch self {
-        case .virtual: return "sparkles"
-        case .food: return "fork.knife"
-        case .entertainment: return "gamecontroller.fill"
-        case .fitness: return "figure.run"
-        case .shopping: return "bag.fill"
-        case .selfCare: return "heart.circle.fill"
-        case .social: return "person.2.fill"
-        case .bigGoal: return "star.fill"
+        case .instant: return "bolt.fill"
+        case .experience: return "star.fill"
+        case .purchase: return "bag.fill"
+        case .bigGoal: return "trophy.fill"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .instant: return "Кофе, сладкое, час отдыха"
+        case .experience: return "Кино, ресторан, массаж"
+        case .purchase: return "Одежда, техника, аксессуары"
+        case .bigGoal: return "Путешествие, крупная покупка"
         }
     }
 }

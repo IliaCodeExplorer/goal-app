@@ -1,183 +1,135 @@
-//
-//  Reward.swift
-//  GoalTracker
-//
-//  Created by Ilyas on 11/5/25.
-//
-
 import Foundation
 
 class RewardsManager {
     static let shared = RewardsManager()
     
-    // Дефолтные виртуальные награды
-    let defaultVirtualRewards: [Reward] = [
+    // Предустановленные награды
+    let defaultRewards: [Reward] = [
+        // МГНОВЕННЫЕ (маленькие радости)
         Reward(
-            title: "Темная тема",
-            description: "Элегантный темный интерфейс",
-            cost: 100,
-            icon: "moon.stars.fill",
-            category: .virtual
-        ),
-        Reward(
-            title: "Пак иконок: Природа",
-            description: "20 иконок природы",
-            cost: 75,
-            icon: "leaf.fill",
-            category: .virtual
-        ),
-        Reward(
-            title: "Пак иконок: Спорт",
-            description: "20 спортивных иконок",
-            cost: 75,
-            icon: "figure.run",
-            category: .virtual
-        ),
-        Reward(
-            title: "Золотая тема",
-            description: "Премиум золотая тема",
-            cost: 200,
-            icon: "sparkles",
-            category: .virtual
-        ),
-        Reward(
-            title: "Спецэффект: Фейерверк",
-            description: "Красивый эффект при завершении",
-            cost: 150,
-            icon: "fireworks",
-            category: .virtual
-        ),
-    ]
-    
-    // Примеры реальных наград
-    let defaultRealRewards: [Reward] = [
-        // Еда
-        Reward(
-            title: "☕ Кофе с пирожным",
-            description: "Вкусный перерыв в любимой кофейне",
+            title: "☕ Кофе с десертом",
+            description: "Любимый напиток в кофейне",
             cost: 150,
             icon: "cup.and.saucer.fill",
-            category: .food
+            category: .instant
         ),
         Reward(
-            title: "🍫 Любимое сладкое",
-            description: "Маленькая радость для себя",
+            title: "🍫 Сладкое без вины",
+            description: "Заслуженное лакомство",
             cost: 50,
-            icon: "heart.fill",
-            category: .food
+            icon: "birthday.cake.fill",
+            category: .instant
         ),
         Reward(
-            title: "🍕 Вкусный ужин",
-            description: "Заказать любимую еду",
-            cost: 200,
-            icon: "fork.knife",
-            category: .food
-        ),
-        Reward(
-            title: "🍰 Торт в кондитерской",
-            description: "Особенный десерт",
-            cost: 300,
-            icon: "birthday.cake",
-            category: .food
-        ),
-        
-        // Развлечения
-        Reward(
-            title: "🎮 1 час игры",
-            description: "Время для любимой игры без вины",
+            title: "🎮 Час игры",
+            description: "Время на любимую игру",
             cost: 100,
             icon: "gamecontroller.fill",
-            category: .entertainment
+            category: .instant
         ),
+        Reward(
+            title: "📺 Сериал вечером",
+            description: "Отдых перед экраном",
+            cost: 75,
+            icon: "tv.fill",
+            category: .instant
+        ),
+        Reward(
+            title: "😴 Поспать днем",
+            description: "Заслуженный отдых",
+            cost: 100,
+            icon: "bed.double.fill",
+            category: .instant
+        ),
+        
+        // ВПЕЧАТЛЕНИЯ (средние награды)
         Reward(
             title: "🎬 Поход в кино",
-            description: "Билет на новый фильм",
+            description: "Новый фильм на большом экране",
             cost: 300,
             icon: "film.fill",
-            category: .entertainment
+            category: .experience
         ),
         Reward(
-            title: "📚 Новая книга",
-            description: "Купить книгу которую хотел",
+            title: "🍕 Ужин в ресторане",
+            description: "Вкусная еда без готовки",
             cost: 400,
-            icon: "book.fill",
-            category: .entertainment
+            icon: "fork.knife",
+            category: .experience
         ),
-        Reward(
-            title: "🎵 Концерт",
-            description: "Билет на любимого исполнителя",
-            cost: 1500,
-            icon: "music.note",
-            category: .entertainment
-        ),
-        
-        // Фитнес
         Reward(
             title: "💆 Массаж",
-            description: "Расслабляющий массаж",
-            cost: 800,
+            description: "Расслабление и забота о себе",
+            cost: 600,
             icon: "hands.sparkles.fill",
-            category: .fitness
+            category: .experience
         ),
         Reward(
-            title: "🏊 Бассейн",
-            description: "День в бассейне или сауне",
-            cost: 400,
-            icon: "figure.pool.swim",
-            category: .fitness
+            title: "🏊 День в спа",
+            description: "Полное расслабление",
+            cost: 800,
+            icon: "drop.fill",
+            category: .experience
         ),
         
-        // Покупки
+        // ПОКУПКИ (материальные награды)
         Reward(
-            title: "👟 Новые кроссовки",
-            description: "Обновить спортивную обувь",
-            cost: 2000,
-            icon: "figure.walk",
-            category: .shopping
+            title: "📚 Новая книга",
+            description: "Книга которую давно хотел",
+            cost: 250,
+            icon: "book.fill",
+            category: .purchase
         ),
         Reward(
             title: "👕 Новая одежда",
-            description: "Купить то что нравится",
-            cost: 1500,
+            description: "Обновить гардероб",
+            cost: 1000,
             icon: "tshirt.fill",
-            category: .shopping
+            category: .purchase
+        ),
+        Reward(
+            title: "👟 Новая обувь",
+            description: "Качественная обувь",
+            cost: 1500,
+            icon: "shoeprints.fill",
+            category: .purchase
         ),
         Reward(
             title: "🎧 Наушники",
-            description: "Хорошие наушники",
-            cost: 3000,
+            description: "Хороший звук для себя",
+            cost: 2000,
             icon: "headphones",
-            category: .shopping
+            category: .purchase
         ),
         
-        // Большие цели
+        // БОЛЬШИЕ ЦЕЛИ
         Reward(
-            title: "🚗 Тест-драйв машины мечты",
-            description: "Записаться на тест-драйв",
-            cost: 1000,
+            title: "🚗 Тест-драйв мечты",
+            description: "Прокатиться на машине мечты",
+            cost: 3000,
             icon: "car.fill",
             category: .bigGoal
         ),
         Reward(
-            title: "✈️ Выходные в другом городе",
-            description: "Короткое путешествие",
+            title: "✈️ Путешествие",
+            description: "Выходные в другом городе",
             cost: 5000,
             icon: "airplane",
             category: .bigGoal
         ),
         Reward(
-            title: "💻 Новый гаджет",
-            description: "iPad, часы или другая техника",
+            title: "📱 Новый гаджет",
+            description: "Телефон, планшет, часы",
             cost: 10000,
             icon: "iphone",
             category: .bigGoal
         ),
         Reward(
-            title: "🏖️ Отпуск",
-            description: "Неделя отдыха на море",
+            title: "🏖️ Отпуск на море",
+            description: "Неделя полного отдыха",
             cost: 20000,
             icon: "sun.max.fill",
             category: .bigGoal
-        ),
+        )
     ]
 }

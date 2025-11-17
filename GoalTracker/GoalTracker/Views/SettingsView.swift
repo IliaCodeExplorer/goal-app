@@ -154,7 +154,7 @@ struct SettingsView: View {
     private func resetAllData() {
         goalManager.goals = []
         goalManager.achievements = []
-        goalManager.rewards = RewardsManager.shared.defaultVirtualRewards + RewardsManager.shared.defaultRealRewards
+        goalManager.rewards = RewardsManager.shared.defaultRewards
         goalManager.userProfile = UserProfile()
     }
 }

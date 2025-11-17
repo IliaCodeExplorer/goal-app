@@ -73,6 +73,7 @@ struct RewardsShopView: View {
                         }
                     }
                     .padding(.horizontal)
+                    .id(showingPurchasedOnly)
                 }
                 .padding(.vertical)
             }
@@ -301,13 +302,10 @@ struct RewardCardView: View {
     
     private var categoryColor: Color {
         switch reward.category {
-        case .virtual: return .purple
-        case .food: return .orange
-        case .entertainment: return .blue
-        case .fitness: return .green
-        case .shopping: return .pink
-        case .bigGoal: return .yellow
-        @unknown default: return .gray
+        case .instant: return .orange
+        case .experience: return .blue
+        case .purchase: return .pink
+        case .bigGoal: return .purple
         }
     }
 }
@@ -322,14 +320,10 @@ struct RewardDetailView: View {
         goalManager.userProfile.coins >= reward.cost
     }
     
-    var canPurchase: Bool {
-        canAfford && !reward.isPurchased
-    }
-    
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 30) {
+                VStack(spacing: 24) {
                     // Icon
                     ZStack {
                         Circle()
@@ -340,18 +334,18 @@ struct RewardDetailView: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(width: 150, height: 150)
+                            .frame(width: 120, height: 120)
                         
                         Image(systemName: reward.icon)
-                            .font(.system(size: 70))
+                            .font(.system(size: 50))
                             .foregroundColor(categoryColor)
                     }
                     .padding(.top)
                     
-                    // Info
-                    VStack(spacing: 16) {
+                    // Title & Description
+                    VStack(spacing: 8) {
                         Text(reward.title)
-                            .font(.title)
+                            .font(.title2)
                             .fontWeight(.bold)
                             .multilineTextAlignment(.center)
                         
@@ -359,95 +353,121 @@ struct RewardDetailView: View {
                             .font(.body)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                        
-                        HStack(spacing: 20) {
-                            VStack(spacing: 4) {
-                                Text("Стоимость")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                HStack(spacing: 4) {
-                                    Image(systemName: "dollarsign.circle.fill")
-                                        .foregroundColor(.yellow)
-                                    
-                                    Text("\(reward.cost)")
-                                        .font(.title3)
-                                        .fontWeight(.bold)
-                                }
+                    }
+                    .padding(.horizontal)
+                    
+                    // Stats
+                    HStack(spacing: 16) {
+                        StatBlock(title: "Цена", value: "\(reward.cost)", icon: "dollarsign.circle.fill", color: .yellow)
+                        StatBlock(title: "Куплено", value: "\(reward.totalPurchases)", icon: "bag.fill", color: .green)
+                        StatBlock(title: "Ждет", value: "\(reward.pendingRedemptions)", icon: "clock.fill", color: .orange)
+                    }
+                    .padding(.horizontal)
+                    
+                    // Purchase History Stats
+                    if reward.totalPurchases > 0 {
+                        VStack(spacing: 12) {
+                            Text("📊 Статистика")
+                                .font(.headline)
+                            
+                            HStack {
+                                Text("Сегодня:")
+                                Spacer()
+                                Text("\(reward.todayPurchases) раз")
+                                    .fontWeight(.semibold)
                             }
                             
-                            Divider()
-                                .frame(height: 40)
-                            
-                            VStack(spacing: 4) {
-                                Text("Категория")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                Text(reward.category.rawValue)
-                                    .font(.subheadline)
+                            HStack {
+                                Text("За неделю:")
+                                Spacer()
+                                Text("\(reward.weekPurchases) раз")
                                     .fontWeight(.semibold)
-                                    .foregroundColor(categoryColor)
+                            }
+                            
+                            HStack {
+                                Text("Всего потрачено:")
+                                Spacer()
+                                Text("\(reward.totalSpent) монет")
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.yellow)
+                            }
+                            
+                            if let lastDate = reward.lastPurchaseDate {
+                                HStack {
+                                    Text("Последняя покупка:")
+                                    Spacer()
+                                    Text(formatDate(lastDate))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
                             }
                         }
                         .padding()
                         .background(Color.gray.opacity(0.1))
                         .cornerRadius(12)
+                        .padding(.horizontal)
                     }
                     
-                    // Кнопка покупки
-                    if canPurchase {
-                        Button {
-                            showingConfirmation = true
-                        } label: {
-                            Text("Купить награду")
+                    // Action Buttons
+                    VStack(spacing: 12) {
+                        // Кнопка "Использовал"
+                        if reward.hasUnredeemedPurchases {
+                            Button {
+                                goalManager.redeemOldestPurchase(rewardId: reward.id)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                    Text("🎉 Использовал в реале!")
+                                }
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.green)
+                                .cornerRadius(12)
+                            }
+                            
+                            Text("Осталось использовать: \(reward.pendingRedemptions)")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                        
+                        // Кнопка "Купить"
+                        if canAfford {
+                            Button {
+                                showingConfirmation = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "cart.fill")
+                                    Text("Купить ещё")
+                                }
                                 .font(.headline)
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(Color.purple)
                                 .cornerRadius(12)
-                        }
-                        .padding(.horizontal)
-                    } else if !canAfford {
-                        VStack(spacing: 12) {
-                            Text("Недостаточно монет")
-                                .font(.headline)
-                                .foregroundColor(.red)
-                            
-                            Text("Нужно еще \(reward.cost - goalManager.userProfile.coins) монет")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.red.opacity(0.1))
-                        .cornerRadius(12)
-                        .padding(.horizontal)
-                    } else if reward.isPurchased {
-                        VStack(spacing: 12) {
-                            Image(systemName: "checkmark.seal.fill")
-                                .font(.system(size: 50))
-                                .foregroundColor(.green)
-                            
-                            Text("Награда уже куплена!")
-                                .font(.headline)
-                                .foregroundColor(.green)
-                            
-                            if let date = reward.purchaseDate {
-                                Text("Куплено: \(date.formatted(date: .long, time: .shortened))")
+                            }
+                        } else {
+                            VStack(spacing: 8) {
+                                Text("Недостаточно монет")
+                                    .font(.headline)
+                                    .foregroundColor(.red)
+                                
+                                let needed = reward.cost - goalManager.userProfile.coins
+                                Text("Нужно ещё \(needed) монет")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(12)
                         }
-                        .padding()
-                        .background(Color.green.opacity(0.1))
-                        .cornerRadius(12)
-                        .padding(.horizontal)
                     }
+                    .padding(.horizontal)
                 }
-                .padding()
+                .padding(.vertical)
             }
             .navigationTitle("Детали награды")
             .navigationBarTitleDisplayMode(.inline)
@@ -461,29 +481,61 @@ struct RewardDetailView: View {
             .alert("Купить награду?", isPresented: $showingConfirmation) {
                 Button("Отмена", role: .cancel) { }
                 Button("Купить за \(reward.cost) монет") {
-                    if goalManager.purchaseReward(reward) {
-                        dismiss()
-                    }
+                    _ = goalManager.purchaseReward(reward)
                 }
             } message: {
-                Text("Вы уверены что хотите купить \"\(reward.title)\"?")
+                Text("Купить \"\(reward.title)\" за \(reward.cost) монет?")
             }
         }
     }
     
     private var categoryColor: Color {
         switch reward.category {
-        case .virtual: return .purple
-        case .food: return .orange
-        case .entertainment: return .blue
-        case .fitness: return .green
-        case .shopping: return .pink
-        case .bigGoal: return .yellow
-        @unknown default: return .gray
+        case .instant: return .orange
+        case .experience: return .blue
+        case .purchase: return .pink
+        case .bigGoal: return .purple
         }
-    }}
-
-#Preview {
-    RewardsShopView()
-        .environmentObject(GoalManager())
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        formatter.locale = Locale(identifier: "ru_RU")
+        return formatter.string(from: date)
+    }
 }
+
+// Helper View
+struct StatBlock: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(color)
+            
+            Text(value)
+                .font(.title3)
+                .fontWeight(.bold)
+            
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(Color.gray.opacity(0.1))
+        .cornerRadius(10)
+    }
+}
+    #Preview {
+        RewardsShopView()
+            .environmentObject(GoalManager())
+    }
+

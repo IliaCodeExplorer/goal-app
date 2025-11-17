@@ -54,6 +54,7 @@ class GoalManager: ObservableObject {
         loadGoals()
         loadAchievements()
         loadRewards()
+        migrateRewardsIfNeeded()
         loadProfile()
         checkAndResetRepeatingGoals()
         updateStreak()
@@ -294,28 +295,88 @@ class GoalManager: ObservableObject {
     }
     
     // MARK: - Reward Management
+    // MARK: - Reward Management
+
     func purchaseReward(_ reward: Reward) -> Bool {
-        guard spendCoins(reward.cost) else { return false }
+        guard userProfile.coins >= reward.cost else { return false }
         
+        // Списываем монеты
+        userProfile.coins -= reward.cost
+        
+        // Добавляем запись в историю покупок
         if let index = rewards.firstIndex(where: { $0.id == reward.id }) {
-            var updatedReward = rewards[index]
-            updatedReward.isPurchased = true
-            updatedReward.purchaseDate = Date()
-            rewards[index] = updatedReward
+            let record = PurchaseRecord(cost: reward.cost)
+            rewards[index].purchaseHistory.append(record)
         }
         
         saveRewards()
+        saveProfile()
+        
+        // Haptic feedback
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        
         return true
     }
-    
+
+    func redeemPurchase(rewardId: UUID, purchaseId: UUID) -> Bool {
+        guard let rewardIndex = rewards.firstIndex(where: { $0.id == rewardId }),
+              let purchaseIndex = rewards[rewardIndex].purchaseHistory.firstIndex(where: { $0.id == purchaseId }) else {
+            return false
+        }
+        
+        rewards[rewardIndex].purchaseHistory[purchaseIndex].isRedeemed = true
+        rewards[rewardIndex].purchaseHistory[purchaseIndex].redeemedDate = Date()
+        
+        saveRewards()
+        
+        // Haptic feedback
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        
+        return true
+    }
+
+    func redeemOldestPurchase(rewardId: UUID) -> Bool {
+        guard let rewardIndex = rewards.firstIndex(where: { $0.id == rewardId }),
+              let purchaseIndex = rewards[rewardIndex].purchaseHistory.firstIndex(where: { !$0.isRedeemed }) else {
+            return false
+        }
+        
+        rewards[rewardIndex].purchaseHistory[purchaseIndex].isRedeemed = true
+        rewards[rewardIndex].purchaseHistory[purchaseIndex].redeemedDate = Date()
+        
+        saveRewards()
+        
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        
+        return true
+    }
+
     func addCustomReward(_ reward: Reward) {
-        rewards.append(reward)
+        var newReward = reward
+        newReward.isCustom = true
+        rewards.append(newReward)
         saveRewards()
     }
-    
+
     func deleteReward(_ reward: Reward) {
         rewards.removeAll { $0.id == reward.id }
         saveRewards()
+    }
+
+    // Статистика наград
+    var totalRewardsRedeemed: Int {
+        rewards.flatMap { $0.purchaseHistory }.filter { $0.isRedeemed }.count
+    }
+
+    var totalCoinsSpentOnRewards: Int {
+        rewards.flatMap { $0.purchaseHistory }.reduce(0) { $0 + $1.cost }
+    }
+
+    var pendingRedemptions: [Reward] {
+        rewards.filter { $0.hasUnredeemedPurchases }
     }
     
     // MARK: - Repeating Goals
@@ -433,7 +494,16 @@ class GoalManager: ObservableObject {
            let decoded = try? JSONDecoder().decode([Reward].self, from: data) {
             rewards = decoded
         } else {
-            rewards = RewardsManager.shared.defaultVirtualRewards + RewardsManager.shared.defaultRealRewards
+            // Первый запуск - загружаем дефолтные
+            rewards = RewardsManager.shared.defaultRewards
+            saveRewards()
+        }
+    }
+    // Добавь эту функцию после loadRewards():
+    private func migrateRewardsIfNeeded() {
+        // Если награды пустые или старого формата - перезагрузить
+        if rewards.isEmpty {
+            rewards = RewardsManager.shared.defaultRewards
             saveRewards()
         }
     }

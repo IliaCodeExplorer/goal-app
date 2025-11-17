@@ -7,10 +7,9 @@ struct AddRewardView: View {
     @State private var title: String = ""
     @State private var description: String = ""
     @State private var cost: String = ""
-    @State private var selectedCategory: RewardCategory = .food
+    @State private var selectedCategory: RewardCategory = .instant
     @State private var selectedIcon: String = "gift.fill"
     @State private var showingIconPicker = false
-    @State private var isReusable: Bool = true // По умолчанию многоразовая
     
     var body: some View {
         NavigationView {
@@ -75,18 +74,9 @@ struct AddRewardView: View {
                     }
                     .pickerStyle(.menu)
                     
-                    Toggle("Многоразовая награда", isOn: $isReusable)
-                        .toggleStyle(SwitchToggleStyle(tint: .purple))
-                    
-                    if isReusable {
-                        Text("Можно будет покупать много раз")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("Можно купить только один раз")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                    Text(selectedCategory.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 
                 Section {
@@ -131,7 +121,8 @@ struct AddRewardView: View {
             cost: costValue,
             icon: selectedIcon,
             category: selectedCategory,
-//            isReusable: isReusable
+            status: .available,
+            isCustom: true
         )
         
         goalManager.addCustomReward(newReward)
@@ -140,14 +131,10 @@ struct AddRewardView: View {
     
     private var categoryColor: Color {
         switch selectedCategory {
-        case .virtual: return .purple
-        case .food: return .orange
-        case .entertainment: return .blue
-        case .fitness: return .green
-        case .shopping: return .pink
-        case .selfCare: return .cyan
-        case .social: return .indigo
-        case .bigGoal: return .yellow
+        case .instant: return .orange
+        case .experience: return .blue
+        case .purchase: return .pink
+        case .bigGoal: return .purple
         }
     }
 }
