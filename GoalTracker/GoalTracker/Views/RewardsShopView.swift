@@ -413,7 +413,7 @@ struct RewardDetailView: View {
                         // Кнопка "Использовал"
                         if reward.hasUnredeemedPurchases {
                             Button {
-                                goalManager.redeemOldestPurchase(rewardId: reward.id)
+                                _ = goalManager.redeemOldestPurchase(rewardId: reward.id)
                             } label: {
                                 HStack {
                                     Image(systemName: "checkmark.circle.fill")
