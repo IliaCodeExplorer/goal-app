@@ -104,19 +104,19 @@ class GoalManager: ObservableObject {
     }
     
     var dailyGoals: [Goal] {
-        goals.filter { $0.frequency == .daily }
+        goals.filter { $0.frequency == .daily && !$0.isCompleted }
     }
-    
+
     var weeklyGoals: [Goal] {
-        goals.filter { $0.frequency == .weekly }
+        goals.filter { $0.frequency == .weekly && !$0.isCompleted }
     }
-    
+
     var monthlyGoals: [Goal] {
-        goals.filter { $0.frequency == .monthly }
+        goals.filter { $0.frequency == .monthly && !$0.isCompleted }
     }
-    
+
     var yearlyGoals: [Goal] {
-        goals.filter { $0.frequency == .yearly }
+        goals.filter { $0.frequency == .yearly && !$0.isCompleted }
     }
     
     var totalCompletions: Int {
@@ -150,29 +150,3 @@ class GoalManager: ObservableObject {
     }
 }
     
-//    func completionsInLast7Days() -> [Date: Int] {
-//        let calendar = Calendar.current
-//        let endDate = Date()
-//        let startDate = calendar.date(byAdding: .day, value: -6, to: endDate) ?? endDate
-//        
-//        var completionsByDay: [Date: Int] = [:]
-//        
-//        for day in 0...6 {
-//            if let date = calendar.date(byAdding: .day, value: -day, to: endDate) {
-//                let startOfDay = calendar.startOfDay(for: date)
-//                completionsByDay[startOfDay] = 0
-//            }
-//        }
-//        
-//        let allCompletions = goals.flatMap { $0.completionHistory }
-//        
-//        for completion in allCompletions {
-//            if completion.date >= startDate && completion.date <= endDate {
-//                let startOfDay = calendar.startOfDay(for: completion.date)
-//                completionsByDay[startOfDay, default: 0] += 1
-//            }
-//        }
-//        
-//        return completionsByDay
-//    }
-//}

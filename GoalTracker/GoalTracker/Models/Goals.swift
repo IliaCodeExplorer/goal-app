@@ -88,6 +88,8 @@ struct WeeklyStats {
         let value: Double
         let target: Double
         let percentage: Double
+        let wasTracked: Bool  // ← ДОБАВЬ
+        let isFailed: Bool    // ← ДОБАВЬ
         
         var dayName: String {
             let formatter = DateFormatter()
@@ -141,20 +143,36 @@ extension Goal {
             
             let dayValue: Double
             let percentage: Double
+            let wasTracked: Bool
             
             if trackingType == .numeric {
-                dayValue = dayRecords.last?.value ?? 0
+                // Для numeric: берем последнее значение дня
+                if let lastRecord = dayRecords.last {
+                    dayValue = lastRecord.value
+                    wasTracked = true
+                } else {
+                    dayValue = 0
+                    wasTracked = false
+                }
                 percentage = targetValue > 0 ? (dayValue / targetValue) * 100 : 0
             } else {
+                // Для binary: была ли запись в этот день
                 dayValue = dayRecords.isEmpty ? 0 : 1
                 percentage = dayValue * 100
+                wasTracked = !dayRecords.isEmpty
             }
+            
+            // Проверяем: день в прошлом и цель не выполнена = провал
+            let isPastDay = date < today
+            let isFailed = isPastDay && !wasTracked && dayValue < targetValue
             
             dailyValues.append(WeeklyStats.DayValue(
                 date: date,
                 value: dayValue,
                 target: targetValue,
-                percentage: min(percentage, 100)
+                percentage: min(percentage, 100),
+                wasTracked: wasTracked,
+                isFailed: isFailed
             ))
             
             totalValue += dayValue

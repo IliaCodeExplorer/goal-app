@@ -390,28 +390,26 @@ struct GoalCardView: View {
                 endPoint: .bottomTrailing
             )
         } else {
-            // Обычная карточка - чуть светлее чем фон
+            // ОБНОВЛЕНО: Белый фон с легким оттенком
             return LinearGradient(
                 colors: [
-                    Color(.systemGray6).opacity(0.5),
-                    Color(.systemGray6).opacity(0.3)
+                    Color(.systemBackground),
+                    Color(.systemBackground)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         }
     }
-    
     private var shadowColor: Color {
         if goal.currentValue < 0 {
             return Color.red.opacity(0.3)
         } else if goal.isCompleted {
             return Color.green.opacity(0.3)
         } else {
-            return Color.black.opacity(0.1)
+            return Color.black.opacity(0.15)  // ← Было 0.1, стало 0.15
         }
     }
-    
     private var shadowRadius: CGFloat {
         (goal.isCompleted || goal.currentValue < 0) ? 8 : 5
     }
@@ -435,107 +433,7 @@ struct GoalCardView: View {
     }
 }
 
-// MARK: - Manual Input (для numeric целей)
-struct ManualProgressInputView: View {
-    @EnvironmentObject var goalManager: GoalManager
-    @Environment(\.dismiss) var dismiss
-    let goal: Goal
-    @State private var inputValue: String
-    @FocusState private var isInputFocused: Bool
-    
-    init(goal: Goal) {
-        self.goal = goal
-        _inputValue = State(initialValue: String(Int(abs(goal.currentValue))))
-    }
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 24) {
-                VStack(spacing: 8) {
-                    Image(systemName: goal.icon)
-                        .font(.system(size: 60))
-                        .foregroundColor(.blue)
-                    
-                    Text(goal.title)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .multilineTextAlignment(.center)
-                    
-                    Text("Цель: \(formatValue(goal.targetValue))")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.top)
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Введите значение")
-                        .font(.headline)
-                    
-                    TextField("Значение", text: $inputValue)
-                        .keyboardType(.numberPad)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.title)
-                        .multilineTextAlignment(.center)
-                        .focused($isInputFocused)
-                }
-                .padding(.horizontal)
-                
-                // Quick buttons
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    ForEach([1, 5, 10, 50, 100], id: \.self) { increment in
-                        Button {
-                            HapticManager.shared.impact()
-                            let current = Double(inputValue) ?? 0
-                            inputValue = String(Int(current + Double(increment)))
-                        } label: {
-                            Text("+\(increment)")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(Color.green)
-                                .cornerRadius(10)
-                        }
-                    }
-                }
-                .padding(.horizontal)
-                
-                Button {
-                    if let value = Double(inputValue), value >= 0 {
-                        HapticManager.shared.success()
-                        goalManager.updateGoalProgress(goalId: goal.id, value: min(value, goal.targetValue))
-                        dismiss()
-                    }
-                } label: {
-                    Text("Сохранить")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .cornerRadius(12)
-                }
-                .padding(.horizontal)
-                
-                Spacer()
-            }
-            .navigationTitle("Обновить")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Отмена") { dismiss() }
-                }
-            }
-            .onAppear {
-                isInputFocused = true
-            }
-        }
-    }
-    
-    private func formatValue(_ value: Double) -> String {
-        String(Int(value))
-    }
-}
+
 
 // MARK: - Difficulty Penalties
 extension Difficulty {
@@ -557,115 +455,7 @@ extension Difficulty {
         }
     }
 }
-        // MARK: - Weekly Stats View
-// MARK: - Weekly Stats View
-struct WeeklyStatsView: View {
-    let stats: WeeklyStats
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Average line
-            HStack(spacing: 6) {
-                Image(systemName: "chart.bar.fill")
-                    .font(.caption)
-                    .foregroundColor(.blue)
-                
-                Text("За неделю:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                if stats.trackingType == .numeric {
-                    Text("\(String(format: "%.1f", stats.averageValue)) / \(String(format: "%.0f", stats.totalTarget / 7))")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                } else {
-                    Text("\(Int(stats.successRate))% дней")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                }
-                
-                Text("(\(Int(stats.averagePercentage))%)")
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundColor(performanceColor)
-                
-                Image(systemName: stats.trend.icon)
-                    .font(.caption)
-                    .foregroundColor(stats.trend.color)
-                
-                Spacer()
-            }
-            
-            // Mini chart
-            HStack(spacing: 4) {
-                ForEach(stats.dailyValues) { day in
-                    VStack(spacing: 2) {
-                        if stats.trackingType == .numeric {
-                            // Для numeric - bar chart (СТОЛБИКИ)
-                            GeometryReader { geometry in
-                                VStack {
-                                    Spacer()
-                                    RoundedRectangle(cornerRadius: 2)
-                                        .fill(barColor(for: day.percentage))
-                                        .frame(height: geometry.size.height * CGFloat(day.percentage / 100))
-                                }
-                            }
-                        } else {
-                            // Для binary/habit - checkmarks (ГАЛОЧКИ)
-                            ZStack {
-                                Circle()
-                                    .fill(day.percentage >= 100 ? Color.green.opacity(0.2) : Color.gray.opacity(0.1))
-                                    .frame(width: 30, height: 30)
-                                
-                                if day.percentage >= 100 {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundColor(.green)
-                                } else {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.gray)
-                                }
-                            }
-                        }
-                        
-                        // Day label
-                        Text(day.dayName)
-                            .font(.system(size: 8))
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-            }
-            .frame(height: stats.trackingType == .numeric ? 40 : 50)
-        }
-        .padding(8)
-        .background(Color.blue.opacity(0.05))
-        .cornerRadius(8)
-    }
-    
-    private var performanceColor: Color {
-        if stats.averagePercentage >= 80 {
-            return .green
-        } else if stats.averagePercentage >= 50 {
-            return .orange
-        } else {
-            return .red
-        }
-    }
-    
-    private func barColor(for percentage: Double) -> Color {
-        if percentage >= 100 {
-            return .green
-        } else if percentage >= 80 {
-            return .blue
-        } else if percentage >= 50 {
-            return .orange
-        } else {
-            return .red
-        }
-    }
-}
+ 
         #Preview {
             GoalCardView(goal: Goal(
                 title: "Медитация",
