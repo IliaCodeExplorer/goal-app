@@ -84,6 +84,7 @@ struct BackupView: View {
     @State private var exportURL: URL?
     @State private var showingAlert = false
     @State private var alertMessage = ""
+    @State private var backupDocument: BackupDocument?
     
     var body: some View {
         NavigationView {
@@ -118,20 +119,6 @@ struct BackupView: View {
                             }
                             
                             Spacer()
-                        }
-                    }
-                    
-                    if let url = exportURL {
-                        ShareLink(item: url) {
-                            HStack {
-                                Image(systemName: "square.and.arrow.up.on.square")
-                                    .foregroundColor(.green)
-                                
-                                Text("Поделиться файлом")
-                                    .foregroundColor(.primary)
-                                
-                                Spacer()
-                            }
                         }
                     }
                 }
@@ -216,39 +203,91 @@ struct BackupView: View {
                     showingAlert = true
                 }
             }
-            .alert("Результат", isPresented: $showingAlert) {
-                Button("OK") { }
-            } message: {
-                Text(alertMessage)
+            .fileExporter(  // ← ДОБАВЬ ВЕСЬ ЭТОТ БЛОК
+                isPresented: $showingExporter,
+                document: backupDocument,
+                contentType: .json,
+                defaultFilename: "GoalTracker_Backup_\(formattedDate).json"
+            ) { result in
+                switch result {
+                case .success:
+                    alertMessage = "✅ Данные успешно экспортированы!"
+                    showingAlert = true
+                    HapticManager.shared.success()
+                case .failure(let error):
+                    alertMessage = "❌ Ошибка: \(error.localizedDescription)"
+                    showingAlert = true
+                    HapticManager.shared.error()
+                }
             }
-        }
-    }
-    
-    private func exportData() {
-        if let url = BackupManager.shared.exportData(goalManager: goalManager) {
-            exportURL = url
-            alertMessage = "✅ Данные успешно экспортированы!"
-            showingAlert = true
-        } else {
-            alertMessage = "❌ Ошибка экспорта данных"
-            showingAlert = true
-        }
-    }
-    
-    private func importData(from url: URL) {
-        let success = BackupManager.shared.importData(from: url, to: goalManager)
-        
-        if success {
-            alertMessage = "✅ Данные успешно восстановлены!"
-        } else {
-            alertMessage = "❌ Ошибка импорта данных"
-        }
-        
-        showingAlert = true
-    }
-}
+            .alert("Результат", isPresented: $showingAlert) {
+                            Button("OK") { }
+                        } message: {
+                            Text(alertMessage)
+                        }
+                    }
+                }
+                
+                // MARK: - Private Functions
+                private func exportData() {
+                    let backup = BackupManager.BackupData(goalManager: goalManager)
+                    
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = .prettyPrinted
+                    encoder.dateEncodingStrategy = .iso8601
+                    
+                    guard let jsonData = try? encoder.encode(backup) else {
+                        alertMessage = "❌ Ошибка кодирования данных"
+                        showingAlert = true
+                        return
+                    }
+                    
+                    backupDocument = BackupDocument(data: jsonData)
+                    showingExporter = true
+                }
+                
+                private var formattedDate: String {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd_HH-mm"
+                    return formatter.string(from: Date())
+                }
+                
+                private func importData(from url: URL) {
+                    let success = BackupManager.shared.importData(from: url, to: goalManager)
+                    
+                    if success {
+                        alertMessage = "✅ Данные успешно восстановлены!"
+                    } else {
+                        alertMessage = "❌ Ошибка импорта данных"
+                    }
+                    
+                    showingAlert = true
+                }
+            }
 
-#Preview {
-    BackupView()
-        .environmentObject(GoalManager())
-}
+            // MARK: - Backup Document
+            struct BackupDocument: FileDocument {
+                static var readableContentTypes: [UTType] { [.json] }
+                
+                var data: Data
+                
+                init(data: Data) {
+                    self.data = data
+                }
+                
+                init(configuration: ReadConfiguration) throws {
+                    guard let fileData = configuration.file.regularFileContents else {
+                        throw CocoaError(.fileReadCorruptFile)
+                    }
+                    self.data = fileData
+                }
+                
+                func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+                    FileWrapper(regularFileWithContents: data)
+                }
+            }
+
+            #Preview {
+                BackupView()
+                    .environmentObject(GoalManager())
+            }

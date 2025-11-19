@@ -114,38 +114,58 @@ extension GoalManager {
     }
     
     // MARK: - Repeating Goals
+    // MARK: - Repeating Goals Reset
     func checkAndResetRepeatingGoals() {
         let calendar = Calendar.current
         let now = Date()
         
+        print("🔄 Checking repeating goals at \(now)")
+        
+        var resetCount = 0
+        
         for i in 0..<goals.count {
             var goal = goals[i]
             
-            guard goal.isRepeating && goal.isCompleted else { continue }
+            guard goal.isRepeating else { continue }
             
             let shouldReset: Bool
+            let lastUpdate = goal.lastUpdated
             
             switch goal.frequency {
             case .daily:
-                shouldReset = !calendar.isDateInToday(goal.lastUpdated)
+                // Проверяем: последнее обновление было НЕ сегодня?
+                shouldReset = !calendar.isDateInToday(lastUpdate)
+                
             case .weekly:
-                let weeksDiff = calendar.dateComponents([.weekOfYear], from: goal.lastUpdated, to: now).weekOfYear ?? 0
+                // Проверяем: прошла ли хотя бы неделя?
+                let weeksDiff = calendar.dateComponents([.weekOfYear], from: lastUpdate, to: now).weekOfYear ?? 0
                 shouldReset = weeksDiff >= 1
+                
             case .monthly:
-                let monthsDiff = calendar.dateComponents([.month], from: goal.lastUpdated, to: now).month ?? 0
+                // Проверяем: прошёл ли хотя бы месяц?
+                let monthsDiff = calendar.dateComponents([.month], from: lastUpdate, to: now).month ?? 0
                 shouldReset = monthsDiff >= 1
+                
             case .yearly:
-                let yearsDiff = calendar.dateComponents([.year], from: goal.lastUpdated, to: now).year ?? 0
+                // Проверяем: прошёл ли хотя бы год?
+                let yearsDiff = calendar.dateComponents([.year], from: lastUpdate, to: now).year ?? 0
                 shouldReset = yearsDiff >= 1
             }
             
-            if shouldReset {
+            if shouldReset && goal.isCompleted {
+                print("✅ Resetting goal: \(goal.title) (frequency: \(goal.frequency.rawValue))")
                 goal.currentValue = 0
                 goal.lastUpdated = now
                 goals[i] = goal
+                resetCount += 1
             }
         }
         
-        saveGoals()
+        if resetCount > 0 {
+            print("🔄 Reset \(resetCount) repeating goals")
+            saveGoals()
+        } else {
+            print("✅ No goals to reset")
+        }
     }
 }

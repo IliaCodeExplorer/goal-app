@@ -18,6 +18,10 @@ struct UserProfile: Codable {
     var lastActivityDate: Date
     var totalGoalsCompleted: Int
     var characterStats: CharacterStats
+    var todayPenalties: [PenaltyRecord] = []  // ← ДОБАВЬ
+    var showDailyBriefing: Bool = false       // ← ДОБАВЬ
+    var lastBriefingDate: Date?               // ← ДОБАВЬ
+
     
     init(
         coins: Int = 0,
@@ -27,7 +31,11 @@ struct UserProfile: Codable {
         longestStreak: Int = 0,
         lastActivityDate: Date = Date(),
         totalGoalsCompleted: Int = 0,
-        characterStats: CharacterStats = CharacterStats()
+        characterStats: CharacterStats = CharacterStats(),
+        todayPenalties: [PenaltyRecord] = [],        // ← ДОБАВЬ
+        showDailyBriefing: Bool = false,             // ← ДОБАВЬ
+        lastBriefingDate: Date? = nil                // ← ДОБАВЬ
+            
     ) {
         self.coins = coins
         self.level = level
