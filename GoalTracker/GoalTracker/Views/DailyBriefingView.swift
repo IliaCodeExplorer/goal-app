@@ -169,6 +169,9 @@ struct DailyBriefingView: View {
                         
                         // Action Button
                         Button {
+                            goalManager.userProfile.showDailyBriefing = false
+                            goalManager.userProfile.todayPenalties.removeAll()
+                            goalManager.saveProfile()
                             dismiss()
                         } label: {
                             Text("Понял, начинаем день")

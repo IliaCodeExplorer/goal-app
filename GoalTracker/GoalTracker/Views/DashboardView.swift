@@ -1,7 +1,7 @@
 import SwiftUI
 import Combine
 
-// v0.1.5.2 - Smart sorting + Collapsible completed section
+// v0.2.2 - Penalties + Daily Briefing
 struct DashboardView: View {
     @EnvironmentObject var goalManager: GoalManager
     @State private var showingAddGoal = false
@@ -79,6 +79,37 @@ struct DashboardView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                         .zIndex(100)
                 }
+                
+                // Penalty Notification Overlay
+                if !goalManager.userProfile.todayPenalties.isEmpty,
+                   let firstPenalty = goalManager.userProfile.todayPenalties.first {
+                    PenaltyNotificationView(penalty: firstPenalty)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .zIndex(99)
+                        .onAppear {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                                if goalManager.userProfile.todayPenalties.count > 1 {
+                                    goalManager.userProfile.todayPenalties.removeFirst()
+                                } else {
+                                    goalManager.userProfile.todayPenalties.removeAll()
+                                }
+                            }
+                        }
+                }
+                
+                // Daily Briefing Modal
+                if goalManager.userProfile.showDailyBriefing {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            goalManager.userProfile.showDailyBriefing = false
+                            goalManager.saveProfile()
+                        }
+                    
+                    DailyBriefingView(summary: createDailySummary())
+                        .transition(.scale.combined(with: .opacity))
+                        .zIndex(101)
+                }
             }
             .navigationTitle("Мои цели")
             .toolbar {
@@ -112,11 +143,47 @@ struct DashboardView: View {
         .onAppear {
             print("🏠 Dashboard appeared")
             goalManager.checkAndResetRepeatingGoals()
+            goalManager.checkForDailyFailures()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             print("📱 App entered foreground")
             goalManager.checkAndResetRepeatingGoals()
+            goalManager.checkForDailyFailures()
         }
+    }
+    
+    // MARK: - Helper Function
+    private func createDailySummary() -> DailySummary {
+        let calendar = Calendar.current
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+        let startOfYesterday = calendar.startOfDay(for: yesterday)
+        let endOfYesterday = calendar.date(byAdding: .day, value: 1, to: startOfYesterday) ?? Date()
+        
+        var completed = 0
+        var coinsEarned = 0
+        
+        for goal in goalManager.goals {
+            let yesterdayRecords = goal.completionHistory.filter { record in
+                record.date >= startOfYesterday && record.date < endOfYesterday
+            }
+            
+            if !yesterdayRecords.isEmpty {
+                completed += 1
+                coinsEarned += yesterdayRecords.reduce(0) { $0 + $1.coinsEarned }
+            }
+        }
+        
+        let totalPenaltyCoins = goalManager.userProfile.todayPenalties.reduce(0) { $0 + $1.coinsPenalty }
+        
+        return DailySummary(
+            date: yesterday,
+            completedGoals: completed,
+            failedGoals: goalManager.userProfile.todayPenalties.count,
+            coinsEarned: coinsEarned,
+            coinsLost: totalPenaltyCoins,
+            streakBroken: goalManager.userProfile.streak == 0,
+            penalties: goalManager.userProfile.todayPenalties
+        )
     }
 }
 
@@ -161,7 +228,6 @@ struct CompletedGoalsSectionView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header Button
             Button {
                 HapticManager.shared.impact()
                 withAnimation(.easeInOut(duration: 0.3)) {
@@ -194,8 +260,6 @@ struct CompletedGoalsSectionView: View {
             }
             .buttonStyle(PlainButtonStyle())
             
-            // Expandable Content
-            // Expandable Content
             if isExpanded {
                 VStack(spacing: 12) {
                     ForEach(goalManager.completedGoalsList) { goal in
